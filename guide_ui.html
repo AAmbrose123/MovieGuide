@@ -70,8 +70,11 @@ body.pls .grid{display:none}
 .pinbadge svg{width:13px;height:13px}
 .ep .pinmark{display:grid;place-items:center;color:var(--acc)}
 /* playlists: folders that fan their posters out */
-.shelf{display:grid;grid-template-columns:repeat(auto-fit,440px);justify-content:center;gap:290px 48px;padding:290px 60px 110px;justify-items:center}
+.shelf{display:grid;grid-template-columns:repeat(auto-fit,440px);justify-content:center;gap:290px 48px;padding:290px 60px 190px;justify-items:center}
 .shelf.flat{padding-top:90px;row-gap:90px}  /* no posters to fan out: no need for the headroom */
+/* big screens: the shelf grows to suit the screen, sits in the middle, with a soft glow behind it */
+.shelf{align-content:center;box-sizing:border-box;
+    background:radial-gradient(ellipse 55% 45% at 50% 55%,var(--accsoft),transparent 72%)}
 .folder{--fw:380px;--fh:270px;position:relative;width:var(--fw);height:var(--fh);cursor:pointer;perspective:1100px;outline:none;
     transition:transform .5s cubic-bezier(.16,1,.3,1)}
 .folder:hover{transform:translateY(-4px)}
@@ -1142,6 +1145,16 @@ function plRuntime(pl) {
   return m ? (m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`) : "";
 }
 function plHue(id) { let h = 0; for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0; return [262, 18, 200, 330, 150, 45, 280, 190][h % 8]; }
+/* playlists shelf: scale it to the screen and centre it, so a big TV isn't mostly empty space */
+function fitShelf() {
+  const sh = document.querySelector(".shelf"), sc = $("#scroller");
+  if (!sh || !sc) return;
+  const W = sc.clientWidth, H = sc.clientHeight;
+  const z = Math.round(Math.max(1, Math.min(1.7, W / 1900, H / 1000)) * 100) / 100;
+  if (sh.style.zoom !== String(z)) sh.style.zoom = z;
+  sh.style.minHeight = Math.floor(H / z) + "px";
+}
+addEventListener("resize", () => { clearTimeout(fitShelf._t); fitShelf._t = setTimeout(fitShelf, 120); });
 function renderPlaylists(host) {
   const q = S.q.trim().toLowerCase();
   const list = S.playlists.filter(p => !q || p.name.toLowerCase().includes(q) || p.items.some(i => (i.title || "").toLowerCase().includes(q)));
@@ -1167,8 +1180,9 @@ function renderPlaylists(host) {
     </div>
     ${!list.length && q ? `<div class="empty" style="padding:4vh"><p>No playlist matches "${esc(S.q)}".</p></div>` : ""}`;
     // background updates (scores arriving) call this often: don't rebuild the shelf mid-animation if nothing changed
-    if (host._plh === html && host._plNode && host.contains(host._plNode)) return;
+    if (host._plh === html && host._plNode && host.contains(host._plNode)) { fitShelf(); return; }
     host.innerHTML = html; host._plh = html; host._plNode = host.firstElementChild;
+    fitShelf();
     // poster pop-out. The poster under the mouse is chosen by left-right distance to each poster's resting spot,
     // not by the popped-out shape (which grows and lifts and used to flip between posters on its own).
     // A small margin stops it flip-flopping at the boundary; below the flap top nothing pops.
@@ -1188,8 +1202,9 @@ function renderPlaylists(host) {
         if (e.clientY > front.getBoundingClientRect().top + 4) { setUp(null); return; }
         let best = null, bd = 1e9;
         for (const pc of pcs) { const d = Math.abs(e.clientX - centre(pc)[0]); if (d < bd) { bd = d; best = pc; } }
-        if (bd > 110) best = null;                                  // off to the side of the fan
-        if (cur && best && best !== cur && Math.abs(e.clientX - centre(cur)[0]) - bd < 12) best = cur;   // hysteresis
+        const zf = parseFloat(fd.closest(".shelf")?.style.zoom) || 1;
+        if (bd > 110 * zf) best = null;                                  // off to the side of the fan
+        if (cur && best && best !== cur && Math.abs(e.clientX - centre(cur)[0]) - bd < 12 * zf) best = cur;   // hysteresis
         setUp(best);
       });
       fd.addEventListener("mouseleave", () => setUp(null));
