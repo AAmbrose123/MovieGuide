@@ -27,7 +27,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 APP_NAME = "Movie Guide"
-VERSION = "1.0.3"                       # set automatically by the GitHub build from the release tag
+VERSION = "1.0.4"                       # set automatically by the GitHub build from the release tag
 GITHUB_REPO = "AAmbrose123/MovieGuide"  # where updates are published
 FROZEN = getattr(sys, "frozen", False)  # True when running as the built MovieGuide.exe
 HERE = Path(sys.executable).resolve().parent if FROZEN else Path(__file__).resolve().parent
@@ -2586,9 +2586,49 @@ App.update_install = _update_install
 App.store_ref = None
 
 
+# ---------------------------------------------------------------- display size (same proportions on any screen)
+def _get_zoom(self, a=None):
+    return {"zoom": getattr(App, "_zoom", 1.0), "scale": self.store.config.get("uiScale", "auto"),
+            "native": App.window is not None}
+
+
+def _set_zoom(self, a):
+    """Real browser zoom on the WebView2 control, so every part of the page scales together."""
+    a = a or {}
+    if "scale" in a:                                   # the user's choice: "auto" or a fixed factor
+        sc = a["scale"]
+        self.store.config["uiScale"] = sc if sc == "auto" else max(0.5, min(3.0, float(sc)))
+        self.store.touch()
+    if "zoom" not in a:
+        return _get_zoom(self)
+    z = max(0.5, min(3.0, float(a["zoom"])))
+    form = getattr(App.window, "native", None) if App.window is not None else None
+    view = getattr(form, "webview", None)
+    if view is None:
+        return {"ok": False, "zoom": getattr(App, "_zoom", 1.0)}
+    try:
+        from System import Action
+
+        def apply():
+            view.ZoomFactor = z
+        if form.InvokeRequired:
+            form.Invoke(Action(apply))
+        else:
+            apply()
+        App._zoom = z
+        return {"ok": True, "zoom": z}
+    except Exception as e:
+        return {"ok": False, "error": f"{type(e).__name__}: {e}", "zoom": getattr(App, "_zoom", 1.0)}
+
+
+App.get_zoom = _get_zoom
+App.set_zoom = _set_zoom
+App._zoom = 1.0
+
+
 def make_handler(app):
     class H(BaseHTTPRequestHandler):
-        protocol_VERSION = "1.0.3"
+        protocol_VERSION = "1.0.4"
 
         def log_message(self, *a):
             pass
@@ -2717,7 +2757,7 @@ def main():
 
     _win_icon_setup()
     title = f"{APP_NAME} {VERSION}"
-    App.window = webview.create_window(title, url, width=1440, height=920,
+    App.window = webview.create_window(title, url, width=1440, height=920, maximized=True,
                                        min_size=(960, 620), background_color="#0a0b10")
     webview.start(_win_icon_apply, (title,))
     app.store.dirty = True

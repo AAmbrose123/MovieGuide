@@ -1576,6 +1576,12 @@ function openSettings() {
     <div class="row"><input class="field" id="key" placeholder="${S.hasKey ? "Paste a new key to replace it" : "e.g. a1b2c3d4"}" spellcheck="false"><button class="btn sec" id="saveKey">Save key</button></div>
     <div class="msg" id="keyMsg"></div>
     <p class="note">Posters, IMDb ratings, Metacritic, cast and plots come straight from <b>IMDb</b>, and Rotten Tomatoes scores from Rotten Tomatoes itself, with no key and no daily limit. An OMDb key is only used as a backup if IMDb can't be reached. Free key: <button class="linky" onclick="api('open_url',{url:'https://www.omdbapi.com/apikey.aspx'})">omdbapi.com/apikey.aspx</button> → FREE (1,000 a day) → click the link they email you.</p>
+    <h4>Display size</h4>
+    <div class="row"><select class="sel" id="uiscale"></select><span class="note" id="uiscaleNote" style="margin:0;align-self:center"></span></div>
+    <p class="note">Auto keeps the same layout on any screen, from a laptop to a 4K TV. Shortcuts: <b>Ctrl +</b> bigger, <b>Ctrl −</b> smaller, <b>Ctrl 0</b> back to Auto.</p>
+    <h4>Updates</h4>
+    <div class="row"><button class="btn sec" id="updCheck">Check for updates</button><button class="btn pri" id="updNow" style="display:none">Update now</button><span class="note" id="updVer" style="margin:0;align-self:center"></span></div>
+    <div class="msg" id="updMsg"></div>
    </div><footer><button class="btn sec" data-close>Done</button></footer></div>`);
   let changed = false;
   const draw = () => {
@@ -1587,6 +1593,8 @@ function openSettings() {
     });
   };
   draw();
+  bindDisplaySize();
+  bindUpdates();
   $("#fp").oninput = () => { const v = $("#fp").value; if (/\b(downloads?|incoming|torrents?|completed?|unsorted)\b/i.test(v)) $("#fk").value = "mixed"; else if (/\b(tv|shows?|series)\b/i.test(v)) $("#fk").value = "tv"; };
   const add = async browse => {
     const v = $("#fp").value.trim(); if (!browse && !v) { $("#fp").focus(); return; }
@@ -1650,6 +1658,116 @@ document.addEventListener("keydown", e => {
   S.pins = (await api("pins")).pins || {};
   setPlaylists(await api("playlists"));
   loadAll();
+})();
+</script>
+<script>
+window.bindUpdates = () => {
+  const $u = id => document.getElementById(id);
+  const call = async (n, a) => (await fetch("/api/" + n, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(a || {})})).json();
+  const show = (u, checked) => {
+    $u("updVer").textContent = "You have v" + u.current;
+    const m = $u("updMsg");
+    if (u.available) {
+      m.className = "msg good";
+      m.textContent = "v" + u.latest + " is available." + (u.frozen ? "" : " (Opens the download page.)");
+      $u("updNow").style.display = "";
+    } else if (checked && u.error) {
+      m.className = "msg bad"; m.textContent = "Couldn't check for updates: " + u.error;
+      $u("updNow").style.display = "none";
+    } else if (checked) {
+      m.className = "msg good"; m.textContent = "You're up to date" + (u.latest ? " (latest is v" + u.latest + ")." : ".");
+      $u("updNow").style.display = "none";
+    }
+  };
+  call("update_check").then(u => show(u, false)).catch(() => {});
+  $u("updCheck").onclick = async () => {
+    const b = $u("updCheck"); b.disabled = true;
+    $u("updMsg").className = "msg"; $u("updMsg").innerHTML = '<span class="spin"></span> Checking GitHub...';
+    try { show(await call("update_check", {now: true}), true); }
+    catch (e) { $u("updMsg").className = "msg bad"; $u("updMsg").textContent = "Couldn't check for updates."; }
+    b.disabled = false;
+  };
+  $u("updNow").onclick = async () => {
+    const b = $u("updNow"); b.disabled = $u("updCheck").disabled = true; b.textContent = "Downloading...";
+    const r = await call("update_install");
+    if (r.error) { $u("updMsg").className = "msg bad"; $u("updMsg").textContent = r.error; b.textContent = "Retry"; b.disabled = $u("updCheck").disabled = false; }
+    else if (r.restarting) { b.textContent = "Restarting..."; }
+    else { b.textContent = "Update now"; b.disabled = $u("updCheck").disabled = false; }
+  };
+};
+</script>
+<!-- display size: scale the whole UI evenly to fit any screen -->
+<style>
+#zoomtip{position:fixed;left:50%;top:22px;transform:translateX(-50%);z-index:9999;background:var(--surf2);border:1px solid var(--line2);color:var(--text);padding:8px 16px;border-radius:999px;font-weight:700;font-size:13px;box-shadow:0 10px 30px rgba(0,0,0,.5);opacity:0;transition:opacity .2s;pointer-events:none}
+#zoomtip.show{opacity:1}
+</style>
+<div id="zoomtip"></div>
+<script>
+const UIScale = (() => {
+  const SIZES = [0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5];
+  let cur = 1, pref = "auto", native = false, timer = null, tipT = null;
+  const call = async (n, a) => (await fetch("/api/" + n, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(a || {})})).json();
+  // Auto: keep the page between ~1280 and 2560 "design pixels" wide - the range it was built for.
+  function autoZoom() {
+    const w = innerWidth * cur, h = innerHeight * cur;     // size of the window at 100%
+    let z = 1;
+    if (w > 2560) z = w / 2560;
+    else if (w < 1280) z = w / 1280;
+    if (h / z < 760) z = Math.min(z, h / 760);
+    return Math.max(0.5, Math.min(3, Math.round(z * 100) / 100));
+  }
+  const wanted = () => pref === "auto" ? autoZoom() : pref;
+  async function apply(force) {
+    if (!native) return;
+    const z = wanted();
+    if (!force && Math.abs(z - cur) < 0.01) return;
+    const r = await call("set_zoom", {zoom: z});
+    if (r && r.ok) cur = r.zoom;
+  }
+  function tip(text) {
+    const t = document.getElementById("zoomtip"); t.textContent = text; t.classList.add("show");
+    clearTimeout(tipT); tipT = setTimeout(() => t.classList.remove("show"), 1200);
+  }
+  const label = () => pref === "auto" ? `Auto (${Math.round(autoZoom() * 100)}%)` : Math.round(pref * 100) + "%";
+  async function setPref(p, showTip) {
+    pref = p; await call("set_zoom", {scale: p}); await apply(true);
+    if (showTip) tip("Display size: " + label());
+    fill();
+  }
+  function step(dir) {
+    const now = pref === "auto" ? cur : pref;
+    const next = dir > 0 ? SIZES.find(s => s > now + 0.001) : [...SIZES].reverse().find(s => s < now - 0.001);
+    setPref(next === undefined ? now : next, true);
+  }
+  function fill() {
+    const sel = document.getElementById("uiscale"); if (!sel) return;
+    sel.innerHTML = `<option value="auto">Auto (${Math.round(autoZoom() * 100)}%)</option>` +
+      SIZES.map(s => `<option value="${s}">${Math.round(s * 100)}%</option>`).join("");
+    sel.value = pref === "auto" ? "auto" : String(SIZES.includes(pref) ? pref : "auto");
+    const n = document.getElementById("uiscaleNote");
+    if (n) n.textContent = native ? "" : "Use your browser's zoom (Ctrl +/−) here.";
+  }
+  window.bindDisplaySize = () => {
+    fill();
+    const sel = document.getElementById("uiscale");
+    if (sel) sel.onchange = () => setPref(sel.value === "auto" ? "auto" : parseFloat(sel.value), false);
+  };
+  addEventListener("resize", () => { clearTimeout(timer); timer = setTimeout(() => apply(false), 150); });
+  addEventListener("keydown", e => {
+    if (!native || !e.ctrlKey || e.altKey) return;
+    if (e.key === "=" || e.key === "+") { e.preventDefault(); step(1); }
+    else if (e.key === "-" || e.key === "_") { e.preventDefault(); step(-1); }
+    else if (e.key === "0") { e.preventDefault(); setPref("auto", true); }
+  });
+  addEventListener("wheel", e => { if (native && e.ctrlKey) { e.preventDefault(); step(e.deltaY < 0 ? 1 : -1); } }, {passive: false});
+  (async () => {
+    try {
+      const r = await call("get_zoom");
+      cur = r.zoom || 1; pref = r.scale || "auto"; native = !!r.native;
+      await apply(true);
+    } catch (e) {}
+  })();
+  return {apply, setPref};
 })();
 </script>
 <!-- auto-update banner -->
