@@ -27,7 +27,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 APP_NAME = "Movie Guide"
-VERSION = "1.0.2"                       # set automatically by the GitHub build from the release tag
+VERSION = "1.0.3"                       # set automatically by the GitHub build from the release tag
 GITHUB_REPO = "AAmbrose123/MovieGuide"  # where updates are published
 FROZEN = getattr(sys, "frozen", False)  # True when running as the built MovieGuide.exe
 HERE = Path(sys.executable).resolve().parent if FROZEN else Path(__file__).resolve().parent
@@ -2588,7 +2588,7 @@ App.store_ref = None
 
 def make_handler(app):
     class H(BaseHTTPRequestHandler):
-        protocol_VERSION = "1.0.2"
+        protocol_VERSION = "1.0.3"
 
         def log_message(self, *a):
             pass
@@ -2635,6 +2635,54 @@ def make_handler(app):
     return H
 
 
+def _win_icon_setup():
+    """Windows: give the process its own taskbar identity so it shows our icon, not Python's."""
+    if os.name != "nt":
+        return
+    try:
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("AAmbrose123.MovieGuide")
+    except Exception:
+        pass
+
+
+def _win_icon_apply(title):
+    """Windows: put MovieGuide.ico on the app window's title bar and taskbar button."""
+    if os.name != "nt":
+        return
+    ico = next((p for p in (BUNDLE / "MovieGuide.ico", HERE / "MovieGuide.ico") if p.exists()), None)
+    if not ico:
+        return
+    try:
+        import ctypes
+        from ctypes import wintypes
+        u = ctypes.windll.user32
+        u.FindWindowW.restype = wintypes.HWND
+        u.FindWindowW.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR]
+        u.LoadImageW.restype = wintypes.HANDLE
+        u.LoadImageW.argtypes = [wintypes.HINSTANCE, wintypes.LPCWSTR, wintypes.UINT,
+                                 ctypes.c_int, ctypes.c_int, wintypes.UINT]
+        u.SendMessageW.restype = ctypes.c_ssize_t
+        u.SendMessageW.argtypes = [wintypes.HWND, wintypes.UINT, ctypes.c_size_t, ctypes.c_ssize_t]
+        hwnd = None
+        for _ in range(100):                       # wait up to ~10 s for the window to exist
+            hwnd = u.FindWindowW(None, title)
+            if hwnd:
+                break
+            time.sleep(0.1)
+        if not hwnd:
+            return
+        IMAGE_ICON, LR_LOADFROMFILE, WM_SETICON = 1, 0x10, 0x80
+        big = u.LoadImageW(None, str(ico), IMAGE_ICON, u.GetSystemMetrics(11), u.GetSystemMetrics(12), LR_LOADFROMFILE)
+        small = u.LoadImageW(None, str(ico), IMAGE_ICON, u.GetSystemMetrics(49), u.GetSystemMetrics(50), LR_LOADFROMFILE)
+        if big:
+            u.SendMessageW(hwnd, WM_SETICON, 1, big)
+        if small:
+            u.SendMessageW(hwnd, WM_SETICON, 0, small)
+    except Exception:
+        pass
+
+
 def main():
     app = App()
     App.store_ref = app.store
@@ -2667,9 +2715,11 @@ def main():
             pass
         return
 
-    App.window = webview.create_window(f"{APP_NAME} {VERSION}", url, width=1440, height=920,
+    _win_icon_setup()
+    title = f"{APP_NAME} {VERSION}"
+    App.window = webview.create_window(title, url, width=1440, height=920,
                                        min_size=(960, 620), background_color="#0a0b10")
-    webview.start()
+    webview.start(_win_icon_apply, (title,))
     app.store.dirty = True
     app.store.flush()
 
