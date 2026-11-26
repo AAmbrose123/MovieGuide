@@ -1,0 +1,51 @@
+name: Build & Release EXE
+
+on:
+  push:
+    tags: ["v*"]          # pushed by release.bat
+  release:
+    types: [published]    # or a release created on github.com
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller pywebview
+
+      - name: Stamp version from tag
+        shell: pwsh
+        run: |
+          $tag = if ($env:GITHUB_REF_TYPE -eq "tag") { $env:GITHUB_REF_NAME } else { "v0.0.0-dev" }
+          $ver = $tag.TrimStart("v","V")
+          (Get-Content movie_guide.py -Raw) -replace 'VERSION = "[^"]*"', "VERSION = `"$ver`"" | Set-Content movie_guide.py -NoNewline
+          echo "TAG=$tag" >> $env:GITHUB_ENV
+          Select-String -Path movie_guide.py -Pattern '^VERSION ='
+
+      - name: Build MovieGuide.exe
+        run: pyinstaller --noconfirm --onefile --windowed --name MovieGuide --add-data "guide_ui.html;." --collect-all webview movie_guide.py
+
+      - name: Publish release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          files: dist/MovieGuide.exe
+          generate_release_notes: true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MovieGuide
+          path: dist/MovieGuide.exe

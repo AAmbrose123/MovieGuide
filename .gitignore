@@ -1,0 +1,13 @@
+# build output
+build/
+dist/
+*.spec
+__pycache__/
+*.pyc
+# personal library data - stays on this PC only
+matches.json
+custom posters/
+riff_listing.txt
+List RiffTrax folder.bat
+*.old
+*.new
