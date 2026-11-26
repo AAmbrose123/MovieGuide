@@ -30,7 +30,7 @@ jobs:
         run: |
           $tag = if ($env:GITHUB_REF_TYPE -eq "tag") { $env:GITHUB_REF_NAME } else { "v0.0.0-dev" }
           $ver = $tag.TrimStart("v","V")
-          (Get-Content movie_guide.py -Raw) -replace 'VERSION = "[^"]*"', "VERSION = `"$ver`"" | Set-Content movie_guide.py -NoNewline
+          (Get-Content movie_guide.py -Raw) -creplace '(?m)^VERSION = "[^"]*"', "VERSION = `"$ver`"" | Set-Content movie_guide.py -NoNewline
           echo "TAG=$tag" >> $env:GITHUB_ENV
           Select-String -Path movie_guide.py -Pattern '^VERSION ='
 

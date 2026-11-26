@@ -303,6 +303,32 @@ button,input,select{font:inherit;color:inherit}
 .rail button{border:0;background:none;width:26px;height:20px;border-radius:6px;font-size:11.5px;font-weight:700;color:var(--mute);cursor:pointer;padding:0;line-height:20px}
 .rail button:hover:not(:disabled){background:var(--acc);color:#111}
 .rail button:disabled{color:#3a3c46;cursor:default}
+/* cover picker */
+.covpick{display:grid;grid-template-columns:200px 1fr;gap:22px;align-items:start}
+.covprev{width:200px;aspect-ratio:2/3;border-radius:14px;overflow:hidden;background:var(--surf2);display:grid;place-items:center;color:var(--dim);box-shadow:0 14px 34px rgba(0,0,0,.45)}
+.covprev img{width:100%;height:100%;object-fit:cover;display:block;animation:covin .35s ease}
+@keyframes covin{from{opacity:0;transform:scale(1.04)}to{opacity:1;transform:none}}
+.covside{display:flex;flex-direction:column;gap:12px}
+.covdrop{border:2px dashed var(--line2);border-radius:14px;padding:22px;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;transition:.15s}
+.covdrop span{color:var(--mute);font-size:12.5px;margin-bottom:8px}
+.covdrop.over{border-color:var(--acc);background:var(--accsoft)}
+/* A-Z rail: dock-style magnify with a letter bubble */
+.rail{position:relative;overflow:visible;z-index:6}
+.rail::before{content:"";position:absolute;top:0;bottom:0;right:0;width:100%;background:var(--bg);border-left:1px solid var(--line);
+    transition:width .35s cubic-bezier(.2,.9,.25,1),box-shadow .35s,background .35s;z-index:-1}
+.rail.hot::before{width:70px;background:var(--surf);border-left-color:var(--line2);box-shadow:-24px 0 50px rgba(0,0,0,.55)}
+.rail button{position:relative;transform-origin:85% 50%;will-change:transform;
+    transition:transform .45s cubic-bezier(.2,1.4,.35,1),color .15s,background .15s}
+.rail.hot button{transition:transform .11s ease-out,color .15s,background .15s}
+.rail button.near{color:var(--text)}
+.rail button.on{background:var(--acc);color:#111}
+#railbub{position:fixed;z-index:50;width:72px;height:72px;border-radius:22px;background:var(--acc);color:#111;display:grid;place-items:center;
+    font:800 38px/1 var(--display,var(--font));pointer-events:none;opacity:0;box-shadow:0 16px 40px rgba(0,0,0,.5);
+    transform:translate(-100%,-50%) scale(.4) rotate(-8deg);transition:opacity .2s,transform .35s cubic-bezier(.2,1.5,.35,1),top .12s ease-out}
+#railbub::after{content:"";position:absolute;right:-7px;top:50%;width:16px;height:16px;background:inherit;border-radius:3px;transform:translateY(-50%) rotate(45deg)}
+#railbub.show{opacity:1;transform:translate(-100%,-50%) scale(1) rotate(0)}
+@media (prefers-reduced-motion:reduce){.rail button,#railbub{transition:none!important}}
+
 
 .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:14vh 30px;color:var(--mute)}
 .empty h2{color:var(--text);font-family:var(--display);margin:0 0 8px;font-size:22px}
@@ -627,7 +653,11 @@ function quality(it) {
 }
 function qrank(it) { const q = quality(it); return q.includes("4K") ? 4 : q.includes("1080p") ? 3 : q.includes("720p") ? 2 : q.includes("SD") || q.includes("DVD") ? 1 : 0; }
 function fmtSize(b) { if (!b) return ""; return b >= 1e9 ? (b / 1e9).toFixed(1) + " GB" : Math.round(b / 1e6) + " MB"; }
-function posterURL(d, big) { return d?.posterUrl ? `/poster/${d.imdbID}${big ? "_H" : "_M"}.jpg` : null; }
+function posterURL(d, big) {
+  if (!d?.imdbID || !(d.posterUrl || S.covers?.[d.imdbID])) return null;
+  const r = S.coverRev?.[d.imdbID];
+  return `/poster/${d.imdbID}${big ? "_H" : "_M"}.jpg${r ? "?c=" + r : ""}`;
+}
 function isMixed(it) { const p = (it.path || "").toLowerCase(); return S.mixed.some(m => p === m || p.startsWith(m + "\\") || p.startsWith(m + "/")); }
 
 function regroup() {
@@ -930,11 +960,60 @@ function renderRail(vis) {
   rail.innerHTML = "#ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").map(l => `<button data-l="${l}" ${have.has(l) ? "" : "disabled"}>${l}</button>`).join("");
 }
 $("#rail").onclick = e => {
-  const b = e.target.closest("button"); if (!b || b.disabled) return;
+  const b = $("#rail button.on") || e.target.closest("button"); if (!b || b.disabled) return;   // .on = the magnified letter
   const it = visibleList().find(x => letterOf(x) === b.dataset.l); if (!it) return;
   const c = S.lib.cards.get(it.id); const sc = $("#scroller");
   sc.scrollTop = c.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop - 18;
 };
+/* A-Z rail magnify: letters swell and slide out around the mouse, with a big letter bubble */
+(() => {
+  const rail = $("#rail"); if (!rail) return;
+  const bub = document.createElement("div"); bub.id = "railbub"; document.body.appendChild(bub);
+  let raf = 0, my = 0;
+  const frame = () => {
+    raf = 0;
+    const btns = rail.querySelectorAll("button"); if (!btns.length) return;
+    const rr = rail.getBoundingClientRect();
+    let best = null, bd = 1e9;
+    // dock maths on the letters' resting spots: each one swells near the mouse, and the
+    // ones around it are pushed apart by the extra height, keeping the letter under the mouse in place
+    const base = [...btns].map(b => { const c = b.offsetTop + b.offsetHeight / 2; return {b, c, h: b.offsetHeight}; });
+    const y = my - rr.top;
+    let cum = 0;
+    base.forEach(o => {
+      const t = (y - o.c) / 34; o.k = Math.exp(-t * t);           // 1 under the mouse, fading to 0 a few letters away
+      o.sc = 1 + 0.85 * o.k; const ext = (o.sc - 1) * o.h;
+      o.cum = cum + ext / 2; cum += ext;
+    });
+    // where the mouse sits in the stretched column = the anchor that must not move
+    let anchor = 0;
+    for (let i = 0; i < base.length; i++) {
+      const o = base[i];
+      if (y <= o.c + o.h / 2 || i === base.length - 1) { anchor = o.cum + (y - o.c) / o.h * (o.sc - 1) * o.h; break; }
+    }
+    base.forEach(o => {
+      const ty = o.cum - anchor;
+      o.b.style.transform = `translate(${(-o.k * 20).toFixed(1)}px, ${ty.toFixed(1)}px) scale(${o.sc.toFixed(3)})`;
+      o.b.classList.toggle("near", o.k > 0.25);
+      const c = rr.top + o.c + ty;
+      if (!o.b.disabled && Math.abs(my - c) < bd) { bd = Math.abs(my - c); best = [o.b, c]; }
+    });
+    btns.forEach(b => b.classList.toggle("on", !!best && b === best[0] && bd < 16));
+    if (best && bd < 16) {
+      bub.textContent = best[0].dataset.l; bub.style.top = best[1] + "px"; bub.style.left = (rr.right - 82) + "px";
+      bub.classList.add("show");
+    } else bub.classList.remove("show");
+  };
+  rail.addEventListener("mousemove", e => { my = e.clientY; rail.classList.add("hot"); if (!raf) raf = requestAnimationFrame(frame); });
+  rail.addEventListener("mouseleave", () => {
+    rail.classList.remove("hot"); bub.classList.remove("show");
+    rail.querySelectorAll("button").forEach(b => { b.style.transform = ""; b.classList.remove("near", "on"); });
+  });
+  rail.addEventListener("click", e => {
+    const b = rail.querySelector("button.on") || e.target.closest("button"); if (!b || b.disabled) return;
+    bub.animate([{transform: "translate(-100%,-50%) scale(1.25)"}, {transform: "translate(-100%,-50%) scale(1)"}], {duration: 260, easing: "cubic-bezier(.2,1.5,.35,1)"});
+  });
+})();
 $("#chips").onclick = e => { const b = e.target.closest(".chip"); if (!b) return; S.genre[S.tab] = b.dataset.g; applyView(); $("#scroller").scrollTop = 0; };
 
 /* ---------------- tabs ---------------- */
@@ -1010,6 +1089,7 @@ const ICON_PL = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stro
 const ICON_PLUS = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>`;
 const ICON_OPEN = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M10 14 21 3M21 14v7H3V3h7"/></svg>`;
 const ICON_FOLDER2 = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>`;
+const ICON_IMG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="m21 15-4.5-4.5L6 21"/></svg>`;
 const ICON_FIX = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>`;
 const ICON_REVEAL = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 11v5M9.5 13.5 12 11l2.5 2.5"/></svg>`;
 const ICON_UP = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 15 6-6 6 6"/></svg>`;
@@ -1122,6 +1202,7 @@ function cardMenu(x, y, key, inPlaylist) {
     items.push({label: "Remove from " + pl.name, icon: ICON_X, danger: 1, run: () => plEdit({op: "remove", id: pl.id, key})});
   }
   items.push({sep: 1}, {label: "Fix match…", icon: ICON_FIX, run: () => { openDetail(key); setTimeout(openFix, 60); }});
+  if (v.data?.imdbID) items.push({label: "Change cover…", icon: ICON_IMG, run: () => { openDetail(key); setTimeout(openCover, 60); }});
   showCtx(x, y, items);
 }
 
@@ -1323,7 +1404,7 @@ async function pollLoop() {
   setTimeout(pollLoop, r.pending > 0 ? 300 : web ? 800 : 500);
 }
 function base(p) { const s = p.replace(/[\\/]+$/, "").split(/[\\/]/); return s[s.length - 1] || p; }
-function applyState(st) { S.hasKey = st.hasKey; S.native = st.native; S.keyHint = st.keyHint; renderBanner(); }
+function applyState(st) { S.hasKey = st.hasKey; S.native = st.native; S.keyHint = st.keyHint; S.covers = st.covers || {}; S.coverRev = st.coverRev || {}; renderBanner(); }
 function renderBanner() {
   const h = $("#bannerHost");
   if (S.error) h.innerHTML = `<div class="banner err"><span>⚠️</span><span>${esc(S.error)}</span><button class="btn sec" onclick="openSettings()">Settings</button></div>`;
@@ -1392,6 +1473,7 @@ function renderDetail(it, fresh) {
   const fileHTML = `<div class="filebox">
         <code>${esc(cp.path)}</code><br>
         <button class="linky" onclick="openFix()">Wrong title? Fix match</button>
+        ${d.imdbID ? ` &nbsp;·&nbsp; <button class="linky" onclick="openCover()">Change cover</button>` : ""}
         ${d.imdbID ? ` &nbsp;·&nbsp; <button class="linky" onclick="api('open_url',{url:'https://www.imdb.com/title/${d.imdbID}/'})">IMDb</button>` : ""}
         ${d.imdbID && show ? ` &nbsp;·&nbsp; <button class="linky" onclick="api('open_url',{url:'https://www.gridratings.com/show/${(d.Title || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/['’.]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}-${d.imdbID}'})">GridRatings</button>` : ""}
         ${d.rtUrl ? ` &nbsp;·&nbsp; <button class="linky" data-url="${esc(d.rtUrl)}" onclick="api('open_url',{url:this.dataset.url})">Rotten Tomatoes</button>` : ""}
@@ -1563,6 +1645,8 @@ function openFix() {
   const it = selCopy(v); S.copyId = it.id;
   openModal(`<div class="modal"><header><h3>Fix match</h3><p>Search for the right title for <b>${esc(it.name)}</b>.</p></header>
     <div class="mb"><div class="row"><input class="field" id="fq" value="${esc(it.title)}"><select class="sel" id="ft"><option value="">Any</option><option value="movie" ${it.type === "movie" ? "selected" : ""}>Movie</option><option value="series" ${it.type === "series" ? "selected" : ""}>Show</option></select><button class="btn pri" id="fgo">Search</button></div>
+    <div class="row" style="margin-top:10px"><input class="field" id="flink" placeholder="Or paste an IMDb link, e.g. https://www.imdb.com/title/tt0133093/" spellcheck="false"><button class="btn sec" id="flinkgo">Use link</button></div>
+    <div class="msg" id="flinkmsg"></div>
     <div class="results" id="fres"></div></div>
     <footer><button class="btn sec" data-close>Close</button></footer></div>`);
   const go = async () => {
@@ -1579,7 +1663,65 @@ function openFix() {
     });
   };
   $("#fgo").onclick = go; $("#fq").onkeydown = e => { if (e.key === "Enter") go(); };
+  const useLink = async () => {
+    const m = /tt\d{5,}/i.exec($("#flink").value);
+    if (!m) { $("#flinkmsg").className = "msg bad"; $("#flinkmsg").textContent = "Paste an IMDb title link — it has tt and a number in it, like tt0133093."; return; }
+    $("#flinkmsg").className = "msg"; $("#flinkmsg").innerHTML = `<span class="spin"></span> Looking up ${m[0].toLowerCase()}…`;
+    const res = await api("set_match", {item: {...it, data: null}, imdbID: m[0].toLowerCase()});
+    if (res.error || !res.item?.data) { $("#flinkmsg").className = "msg bad"; $("#flinkmsg").textContent = res.error || "IMDb doesn't know that title. Check the link."; return; }
+    updateItem(res.item); applyView(); closeModal(); toast("Match updated: " + res.item.data.Title);
+  };
+  $("#flinkgo").onclick = useLink; $("#flink").onkeydown = e => { if (e.key === "Enter") useLink(); };
   go();
+}
+
+
+/* ---------------- your own cover art ---------------- */
+function refreshCover(iid) {
+  const r = S.coverRev[iid];
+  document.querySelectorAll("img").forEach(img => {
+    const u = img.getAttribute("src") || "";
+    if (u.startsWith(`/poster/${iid}_`) || u.startsWith(`/poster/${iid}.`)) img.src = u.replace(/\?.*$/, "") + (r ? "?c=" + r : "");
+  });
+}
+function openCover() {
+  const v = curItem(S.detailId); const d = v?.data;
+  if (!d?.imdbID) { toast("Fix the match first, then you can change the cover"); return; }
+  const custom = !!S.covers[d.imdbID];
+  openModal(`<div class="modal"><header><h3>Cover art</h3><p>Pick your own cover for <b>${esc(d.Title || v.title)}</b>. It's saved in the <b>custom posters</b> folder next to the app.</p></header>
+    <div class="mb"><div class="covpick">
+      <div class="covprev" id="cvprev">${posterURL(d, true) ? `<img src="${posterURL(d, true)}" alt="">` : `<span>No cover</span>`}</div>
+      <div class="covside">
+        <div class="covdrop" id="cvdrop"><b>Drop an image here</b><span>JPG, PNG or WebP</span><button class="btn pri" id="cvbrowse">Choose image…</button><input type="file" id="cvfile" accept="image/jpeg,image/png,image/webp" hidden></div>
+        <div class="row"><input class="field" id="cvurl" placeholder="…or paste an image link" spellcheck="false"><button class="btn sec" id="cvurlgo">Use link</button></div>
+        <div class="msg" id="cvmsg"></div>
+        ${custom ? `<button class="linky" id="cvreset">Go back to the IMDb poster</button>` : ""}
+      </div></div></div>
+    <footer><button class="btn sec" data-close>Done</button></footer></div>`);
+  const msg = (t, cls) => { $("#cvmsg").className = "msg " + (cls || ""); $("#cvmsg").innerHTML = t; };
+  const done = r => {
+    if (r.cancelled) { msg(""); return; }
+    if (r.error) { msg(esc(r.error), "bad"); return; }
+    S.covers = r.covers; S.coverRev = r.coverRev; refreshCover(d.imdbID);
+    const u = posterURL(d, true); $("#cvprev").innerHTML = u ? `<img src="${u}" alt="">` : `<span>No cover</span>`;
+    msg(r.covers[d.imdbID] ? "Cover saved ✓" : "Back to the IMDb poster ✓", "good");
+    renderDetail(v, false);
+  };
+  const send = async args => { msg(`<span class="spin"></span> Saving…`); done(await api("set_cover", {imdbID: d.imdbID, ...args})); };
+  const readFile = f => {
+    if (!f) return;
+    if (!/^image\/(jpeg|png|webp)$/.test(f.type)) { msg("That isn't a JPG, PNG or WebP picture.", "bad"); return; }
+    const rd = new FileReader(); rd.onload = () => send({data: rd.result}); rd.readAsDataURL(f);
+  };
+  $("#cvbrowse").onclick = () => S.native ? send({browse: true}) : $("#cvfile").click();
+  $("#cvfile").onchange = e => readFile(e.target.files[0]);
+  const dz = $("#cvdrop");
+  dz.ondragover = e => { e.preventDefault(); dz.classList.add("over"); };
+  dz.ondragleave = () => dz.classList.remove("over");
+  dz.ondrop = e => { e.preventDefault(); dz.classList.remove("over"); readFile(e.dataTransfer.files[0]); };
+  const useUrl = () => { const u = $("#cvurl").value.trim(); if (u) send({url: u}); };
+  $("#cvurlgo").onclick = useUrl; $("#cvurl").onkeydown = e => { if (e.key === "Enter") useUrl(); };
+  if ($("#cvreset")) $("#cvreset").onclick = async () => { msg(`<span class="spin"></span> Resetting…`); done(await api("clear_cover", {imdbID: d.imdbID})); };
 }
 
 /* ---------------- settings: key + folders ---------------- */

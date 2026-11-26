@@ -27,7 +27,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 APP_NAME = "Movie Guide"
-VERSION = "1.0.7"                       # set automatically by the GitHub build from the release tag
+VERSION = "1.0.8"                       # set automatically by the GitHub build from the release tag
 GITHUB_REPO = "AAmbrose123/MovieGuide"  # where updates are published
 FROZEN = getattr(sys, "frozen", False)  # True when running as the built MovieGuide.exe
 HERE = Path(sys.executable).resolve().parent if FROZEN else Path(__file__).resolve().parent
@@ -38,6 +38,7 @@ _base = os.environ.get("APPDATA") or str(Path.home() / ".config")
 DATA_DIR = Path(os.environ.get("MOVIEGUIDE_DATA", Path(_base) / "MovieGuide"))
 POSTER_DIR = DATA_DIR / "posters"
 CUSTOM_POSTER_DIR = HERE / "custom posters"
+COVER_EXTS = (".jpg", ".jpeg", ".png", ".webp")
 CONFIG_FILE = DATA_DIR / "config.json"
 CACHE_FILE = DATA_DIR / "cache.json"
 
@@ -1567,7 +1568,7 @@ class Store:
 
     def custom_poster(self, imdb_id):
         """A picture dropped into C:\\MovieGuide\\custom posters named <imdbID>.jpg/.png always wins."""
-        for ext in (".jpg", ".jpeg", ".png"):
+        for ext in COVER_EXTS:
             p = CUSTOM_POSTER_DIR / f"{imdb_id}{ext}"
             if p.exists() and p.stat().st_size > 0:
                 return p
@@ -2032,7 +2033,7 @@ class App:
         libs = [dict(l, count=sum(len(scans.get(p) or []) for p in l["paths"])) for l in self.libs()]
         return {"libraries": libs, "current": c["current"], "hasKey": bool(c["apiKey"]),
                 "keyHint": (c["apiKey"][:2] + "•••••") if c["apiKey"] else "",
-                "native": App.window is not None}
+                "native": App.window is not None, **self._covers()}
 
     def _resolve_path(self, a):
         path = a.get("path")
@@ -2626,9 +2627,102 @@ App.set_zoom = _set_zoom
 App._zoom = 1.0
 
 
+# ---------------------------------------------------------------- your own cover art
+def _covers(self):
+    """Which titles have a custom cover, plus a revision number per title so the app reloads the picture."""
+    rev = self.store.config.setdefault("coverRev", {})
+    have = {}
+    try:
+        for f in CUSTOM_POSTER_DIR.iterdir():
+            if f.suffix.lower() in COVER_EXTS and re.match(r"^tt\d+$", f.stem):
+                have[f.stem] = rev.get(f.stem) or int(f.stat().st_mtime)
+    except OSError:
+        pass
+    return {"covers": have, "coverRev": rev}
+
+
+def _image_kind(b):
+    if b[:3] == b"\xff\xd8\xff":
+        return ".jpg"
+    if b[:8] == b"\x89PNG\r\n\x1a\n":
+        return ".png"
+    if b[:4] == b"RIFF" and b[8:12] == b"WEBP":
+        return ".webp"
+    return None
+
+
+def _set_cover(self, a):
+    iid = (a.get("imdbID") or "").strip()
+    if not re.match(r"^tt\d{5,}$", iid):
+        return {"error": "This title isn't matched to IMDb yet. Use Fix match first."}
+    data = None
+    try:
+        if a.get("browse"):
+            if App.window is None:
+                return {"error": "File picker only works in the app window."}
+            import webview
+            kind = getattr(getattr(webview, "FileDialog", None), "OPEN", None) or webview.OPEN_DIALOG
+            res = App.window.create_file_dialog(kind, file_types=("Image files (*.jpg;*.jpeg;*.png;*.webp)", "All files (*.*)"))
+            if not res:
+                return {"cancelled": True}
+            data = Path(res[0] if isinstance(res, (list, tuple)) else res).read_bytes()
+        elif a.get("data"):
+            import base64
+            data = base64.b64decode(a["data"].split(",", 1)[-1])
+        elif a.get("url"):
+            url = a["url"].strip()
+            if not re.match(r"^https?://", url, re.I):
+                return {"error": "That doesn't look like a web link (it should start with http)."}
+            req = urllib.request.Request(url, headers=BROWSER)
+            with urllib.request.urlopen(req, timeout=20) as r:
+                data = r.read(30 * 2 ** 20 + 1)
+        else:
+            return {"error": "No picture given."}
+    except Exception as e:
+        return {"error": f"Couldn't get that picture: {e}"}
+    if not data or len(data) > 30 * 2 ** 20:
+        return {"error": "That picture is empty or too big (30 MB max)."}
+    ext = _image_kind(data)
+    if not ext:
+        return {"error": "That isn't a JPG, PNG or WebP picture. (For a web link, use the image's own address: right-click the picture, Copy image address.)"}
+    try:
+        CUSTOM_POSTER_DIR.mkdir(parents=True, exist_ok=True)
+        for e in COVER_EXTS:
+            old = CUSTOM_POSTER_DIR / f"{iid}{e}"
+            if old.exists():
+                old.unlink()
+        (CUSTOM_POSTER_DIR / f"{iid}{ext}").write_bytes(data)
+    except OSError as e:
+        return {"error": f"Couldn't save it in {CUSTOM_POSTER_DIR}: {e}"}
+    self.store.config.setdefault("coverRev", {})[iid] = int(time.time() * 1000)
+    self.store.touch()
+    return dict(ok=True, imdbID=iid, **_covers(self))
+
+
+def _clear_cover(self, a):
+    iid = (a.get("imdbID") or "").strip()
+    if not re.match(r"^tt\d{5,}$", iid):
+        return {"error": "Unknown title."}
+    try:
+        for e in COVER_EXTS:
+            f = CUSTOM_POSTER_DIR / f"{iid}{e}"
+            if f.exists():
+                f.unlink()
+    except OSError as e:
+        return {"error": f"Couldn't remove it: {e}"}
+    self.store.config.setdefault("coverRev", {})[iid] = int(time.time() * 1000)
+    self.store.touch()
+    return dict(ok=True, imdbID=iid, **_covers(self))
+
+
+App._covers = _covers
+App.set_cover = _set_cover
+App.clear_cover = _clear_cover
+
+
 def make_handler(app):
     class H(BaseHTTPRequestHandler):
-        protocol_VERSION = "1.0.7"
+        protocol_version = "HTTP/1.1"
 
         def log_message(self, *a):
             pass
@@ -2651,7 +2745,7 @@ def make_handler(app):
                 size = {"L": "H"}.get(m.group(2), m.group(2) or "")
                 p = app.lib.ensure_poster(m.group(1), size, quick=True)
                 if p:
-                    mime = "image/png" if p.suffix.lower() == ".png" else "image/jpeg"
+                    mime = {".png": "image/png", ".webp": "image/webp"}.get(p.suffix.lower(), "image/jpeg")
                     exact = p.stem == m.group(1) + ("_" + size if size else "")
                     keep = "public, max-age=31536000, immutable" if exact and p.parent != CUSTOM_POSTER_DIR \
                         else "no-cache"            # a stand-in: ask again next time

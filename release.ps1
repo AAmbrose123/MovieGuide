@@ -50,7 +50,7 @@ else { Run pull -q --rebase --autostash origin main }
 $py = Join-Path $PSScriptRoot "movie_guide.py"
 $utf8 = New-Object System.Text.UTF8Encoding $false
 $src = [IO.File]::ReadAllText($py, $utf8)
-$cur = if ($src -match 'VERSION = "([^"]*)"') { $Matches[1] } else { "?" }
+$cur = if ($src -cmatch '(?m)^VERSION = "([^"]*)"') { $Matches[1] } else { "?" }
 
 Write-Host ""
 Write-Host "Current version: $cur" -ForegroundColor Cyan
@@ -61,7 +61,8 @@ if (git tag -l "v$ver") { Fail "v$ver was already released - pick a higher numbe
 $msg = (Read-Host "What changed? (one line)").Trim()
 if (-not $msg) { $msg = "Version $ver" }
 
-$src = [regex]::Replace($src, 'VERSION = "[^"]*"', "VERSION = `"$ver`"", 1)
+# only the real VERSION line (case-sensitive, start of line) - nothing else in the file
+$src = ([regex]'(?m)^VERSION = "[^"]*"').Replace($src, "VERSION = `"$ver`"", 1)
 [IO.File]::WriteAllText($py, $src, $utf8)
 
 Run add -A
