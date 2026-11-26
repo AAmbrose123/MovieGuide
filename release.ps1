@@ -40,8 +40,12 @@ if (Test-Path "release-workflow.yml") {
     Move-Item -Force "release-workflow.yml" ".github\workflows\release.yml"
 }
 
-# Pick up anything already on GitHub
-Run pull -q --rebase --autostash origin main
+# Catch up with anything pushed to GitHub from elsewhere (Claude keeps this folder's files in step,
+# so only the history needs to move - your files are left exactly as they are)
+Run fetch -q origin
+git merge-base --is-ancestor HEAD origin/main 2>$null
+if ($LASTEXITCODE -eq 0) { Run reset -q origin/main }
+else { Run pull -q --rebase --autostash origin main }
 
 $py = Join-Path $PSScriptRoot "movie_guide.py"
 $utf8 = New-Object System.Text.UTF8Encoding $false

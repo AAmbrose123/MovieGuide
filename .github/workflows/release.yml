@@ -35,7 +35,7 @@ jobs:
           Select-String -Path movie_guide.py -Pattern '^VERSION ='
 
       - name: Build MovieGuide.exe
-        run: pyinstaller --noconfirm --onefile --windowed --name MovieGuide --add-data "guide_ui.html;." --collect-all webview movie_guide.py
+        run: pyinstaller --noconfirm --onefile --windowed --name MovieGuide --icon MovieGuide.ico --add-data "guide_ui.html;." --collect-all webview movie_guide.py
 
       - name: Publish release
         if: github.ref_type == 'tag'
