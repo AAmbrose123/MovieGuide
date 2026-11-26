@@ -1150,7 +1150,11 @@ function fitShelf() {
   const sh = document.querySelector(".shelf"), sc = $("#scroller");
   if (!sh || !sc) return;
   const W = sc.clientWidth, H = sc.clientHeight;
-  const z = Math.round(Math.max(1, Math.min(1.7, W / 1900, H / 1000)) * 100) / 100;
+  // size the folders so a full row fits: all of them if there are only a few, otherwise 4 (5 on very wide screens)
+  const n = sh.querySelectorAll(".folder").length || 1;
+  const cols = Math.min(n, W >= 2200 ? 5 : 4);
+  const need = cols * 440 + (cols - 1) * 48 + 140;          // folder width + gaps + side padding at 100% (+ a little slack)
+  const z = Math.floor(Math.max(0.6, Math.min(1.3, W / need, H / 900)) * 100) / 100;
   if (sh.style.zoom !== String(z)) sh.style.zoom = z;
   sh.style.minHeight = Math.floor(H / z) + "px";
 }

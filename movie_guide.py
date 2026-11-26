@@ -27,7 +27,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 APP_NAME = "Movie Guide"
-VERSION = "1.0.6"                       # set automatically by the GitHub build from the release tag
+VERSION = "1.0.7"                       # set automatically by the GitHub build from the release tag
 GITHUB_REPO = "AAmbrose123/MovieGuide"  # where updates are published
 FROZEN = getattr(sys, "frozen", False)  # True when running as the built MovieGuide.exe
 HERE = Path(sys.executable).resolve().parent if FROZEN else Path(__file__).resolve().parent
@@ -2628,7 +2628,7 @@ App._zoom = 1.0
 
 def make_handler(app):
     class H(BaseHTTPRequestHandler):
-        protocol_VERSION = "1.0.6"
+        protocol_VERSION = "1.0.7"
 
         def log_message(self, *a):
             pass
