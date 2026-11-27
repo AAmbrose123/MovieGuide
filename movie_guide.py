@@ -27,7 +27,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 APP_NAME = "Movie Guide"
-VERSION = "1.0.8"                       # set automatically by the GitHub build from the release tag
+VERSION = "1.0.9"                       # set automatically by the GitHub build from the release tag
 GITHUB_REPO = "AAmbrose123/MovieGuide"  # where updates are published
 FROZEN = getattr(sys, "frozen", False)  # True when running as the built MovieGuide.exe
 HERE = Path(sys.executable).resolve().parent if FROZEN else Path(__file__).resolve().parent
@@ -2033,7 +2033,7 @@ class App:
         libs = [dict(l, count=sum(len(scans.get(p) or []) for p in l["paths"])) for l in self.libs()]
         return {"libraries": libs, "current": c["current"], "hasKey": bool(c["apiKey"]),
                 "keyHint": (c["apiKey"][:2] + "•••••") if c["apiKey"] else "",
-                "native": App.window is not None, **self._covers()}
+                "native": App.window is not None, "titles": c.get("titles", {}), **self._covers()}
 
     def _resolve_path(self, a):
         path = a.get("path")
@@ -2718,6 +2718,25 @@ def _clear_cover(self, a):
 App._covers = _covers
 App.set_cover = _set_cover
 App.clear_cover = _clear_cover
+
+
+# ---------------------------------------------------------------- your own titles
+def _set_title(self, a):
+    """Rename a title in the app only (files on disk are never touched). Empty name = back to the original."""
+    key = (a.get("key") or "").strip()
+    if not key:
+        return {"error": "Unknown title."}
+    name = re.sub(r"\s+", " ", (a.get("title") or "")).strip()[:200]
+    titles = self.store.config.setdefault("titles", {})
+    if name and name != (a.get("original") or "").strip():
+        titles[key] = name
+    else:
+        titles.pop(key, None)
+    self.store.touch()
+    return {"ok": True, "titles": titles}
+
+
+App.set_title = _set_title
 
 
 def make_handler(app):

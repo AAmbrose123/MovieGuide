@@ -303,6 +303,11 @@ button,input,select{font:inherit;color:inherit}
 .rail button{border:0;background:none;width:26px;height:20px;border-radius:6px;font-size:11.5px;font-weight:700;color:var(--mute);cursor:pointer;padding:0;line-height:20px}
 .rail button:hover:not(:disabled){background:var(--acc);color:#111}
 .rail button:disabled{color:#3a3c46;cursor:default}
+/* rename pencil next to the big title */
+.renbtn{border:0;background:none;color:var(--mute);cursor:pointer;width:.62em;height:.62em;min-width:22px;min-height:22px;padding:0;margin-left:.3em;vertical-align:middle;opacity:0;transition:opacity .15s,color .15s}
+.renbtn svg{width:100%;height:100%}
+h2:hover .renbtn,.renbtn:focus-visible{opacity:1}
+.renbtn:hover{color:var(--acc)}
 /* cover picker */
 .covpick{display:grid;grid-template-columns:200px 1fr;gap:22px;align-items:start}
 .covprev{width:200px;aspect-ratio:2/3;border-radius:14px;overflow:hidden;background:var(--surf2);display:grid;place-items:center;color:var(--dim);box-shadow:0 14px 34px rgba(0,0,0,.45)}
@@ -670,8 +675,10 @@ function regroup() {
     const v = {...rep, id: k, copies: arr, added: Math.max(...arr.map(x => x.added || 0)),
                mixedOnly: arr.every(isMixed),
                status: arr.some(x => x.status === "pending") && !rep.data ? "pending" : rep.status};
+    const own = S.titles?.[k];                                   // your own name for it, if you renamed it
+    if (own) { v.origTitle = rep.data?.Title || rep.title; v.title = own; if (v.data) v.data = {...v.data, Title: own}; }
     views.set(k, v);
-    const sig = JSON.stringify([rep, arr.length]);
+    const sig = JSON.stringify([rep, arr.length, own || ""]);
     let c = lib.cards.get(k);
     if (!c) { c = makeCard(v); c._sig = sig; lib.cards.set(k, c); lib.grid.appendChild(c); }
     else if (c._sig !== sig) { fillCard(c, v); c._sig = sig; }
@@ -692,8 +699,8 @@ function fillCard(el, it) {
   el.classList.toggle("pending", it.status === "pending");
   el.classList.toggle("pinned", S.pinCards.includes(it.id));
   const pinned = S.pinCards.includes(it.id), my = rSig(it);
-  if (el._src !== src || !el.firstChild || el._n !== n || el._miss !== (it.status === "missing") || el._pin !== pinned || el._my !== my) {
-    el._n = n; el._miss = it.status === "missing"; el._pin = pinned; el._my = my;
+  if (el._src !== src || !el.firstChild || el._n !== n || el._miss !== (it.status === "missing") || el._pin !== pinned || el._my !== my || el._t !== title) {
+    el._t = title; el._n = n; el._miss = it.status === "missing"; el._pin = pinned; el._my = my;
     el.innerHTML = `<div class="pw"><div class="ph"><b>${esc(title)}</b><small>${esc(it.year || "")}</small></div>${src ? `<img loading="lazy" decoding="async" alt="">` : ""}${it.status === "missing" ? `<span class="warn" title="Couldn't find a match — open it and use Fix match">?</span>` : ""}${S.pinCards.includes(it.id) ? `<span class="pinbadge" title="Pinned — right-click to unpin">${PIN}PINNED</span>` : ""}${n > 1 ? `<span class="copiesb" title="${n} copies — open to choose one"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="8" y="8" width="13" height="13" rx="2"/><path d="M4 16V5a1 1 0 0 1 1-1h11"/></svg>${n} copies</span>` : ""}</div><div class="meta"><div class="t"></div><div class="s"></div></div>`;
     if (src) {
       const img = $("img", el);
@@ -1201,7 +1208,8 @@ function cardMenu(x, y, key, inPlaylist) {
     if (idx < pl.items.length - 1) items.push({label: "Move down", icon: ICON_DOWN, run: () => plEdit({op: "move", id: pl.id, key, by: 1})});
     items.push({label: "Remove from " + pl.name, icon: ICON_X, danger: 1, run: () => plEdit({op: "remove", id: pl.id, key})});
   }
-  items.push({sep: 1}, {label: "Fix match…", icon: ICON_FIX, run: () => { openDetail(key); setTimeout(openFix, 60); }});
+  items.push({sep: 1}, {label: "Rename…", icon: ICON_FIX, run: () => { openDetail(key); setTimeout(openRename, 60); }});
+  items.push({label: "Fix match…", icon: ICON_FIX, run: () => { openDetail(key); setTimeout(openFix, 60); }});
   if (v.data?.imdbID) items.push({label: "Change cover…", icon: ICON_IMG, run: () => { openDetail(key); setTimeout(openCover, 60); }});
   showCtx(x, y, items);
 }
@@ -1404,7 +1412,7 @@ async function pollLoop() {
   setTimeout(pollLoop, r.pending > 0 ? 300 : web ? 800 : 500);
 }
 function base(p) { const s = p.replace(/[\\/]+$/, "").split(/[\\/]/); return s[s.length - 1] || p; }
-function applyState(st) { S.hasKey = st.hasKey; S.native = st.native; S.keyHint = st.keyHint; S.covers = st.covers || {}; S.coverRev = st.coverRev || {}; renderBanner(); }
+function applyState(st) { S.hasKey = st.hasKey; S.native = st.native; S.keyHint = st.keyHint; S.covers = st.covers || {}; S.coverRev = st.coverRev || {}; S.titles = st.titles || {}; renderBanner(); }
 function renderBanner() {
   const h = $("#bannerHost");
   if (S.error) h.innerHTML = `<div class="banner err"><span>⚠️</span><span>${esc(S.error)}</span><button class="btn sec" onclick="openSettings()">Settings</button></div>`;
@@ -1464,7 +1472,7 @@ function renderDetail(it, fresh) {
             return `<button class="copy ${c.id === cp.id ? "on" : ""}" data-copy="${esc(c.id)}"><b>Copy ${i + 1}</b><span class="q">${q.map((t, j) => `<i class="${j === 0 && /4K|1080p/.test(t) ? "k" : ""}">${esc(t)}</i>`).join("")}${sz ? `<i>${sz}</i>` : ""}</span><small title="${esc(c.path)}">${esc(c.name)}</small></button>`;
           }).join("")}</div>` : "";
   const heading = `<div class="kind">${show ? "TV Series" : "Movie"}</div>
-          <h2>${esc(title)}</h2>
+          <h2>${esc(title)}<button class="renbtn" onclick="openRename()" title="Rename">${ICON_FIX}</button></h2>
           <div class="kick">${kick.join(`<span class="dot"></span>`)}</div>
           ${d.Genre ? `<div class="genres">${d.Genre.split(",").map(g => `<span>${esc(g.trim())}</span>`).join("")}</div>` : ""}`;
   const castHTML = cast.length ? `<div class="sect"><h3>Cast</h3><div class="cast">${cast.map(a => `<div class="actor"><div class="av" style="background:${colorFor(a)}">${esc(initials(a))}</div><b>${esc(a)}</b></div>`).join("")}</div></div>` : "";
@@ -1676,6 +1684,29 @@ function openFix() {
 }
 
 
+
+/* ---------------- your own title ---------------- */
+function openRename() {
+  const v = curItem(S.detailId); if (!v) return;
+  const key = v.id, orig = v.origTitle || v.data?.Title || v.title, now = v.data?.Title || v.title;
+  openModal(`<div class="modal"><header><h3>Rename</h3><p>Change the name shown in Movie Guide. Your files aren't renamed.</p></header>
+    <div class="mb"><div class="row"><input class="field" id="rnin" value="${esc(now)}" spellcheck="false"><button class="btn pri" id="rnok">Save</button></div>
+    <div class="msg" id="rnmsg"></div>
+    ${v.origTitle ? `<p class="note">Original name: <b>${esc(orig)}</b> &nbsp;<button class="linky" id="rnreset">Use the original</button></p>` : ""}</div>
+    <footer><button class="btn sec" data-close>Cancel</button></footer></div>`);
+  const inp = $("#rnin"); inp.focus(); inp.select();
+  const save = async name => {
+    const r = await api("set_title", {key, title: name, original: orig});
+    if (r.error) { $("#rnmsg").className = "msg bad"; $("#rnmsg").textContent = r.error; return; }
+    S.titles = r.titles; S.lib.dirty = true; regroup(); closeModal(); applyView();
+    const nv = S.lib.views.get(key); if (nv && $("#detail").classList.contains("on")) renderDetail(nv, false);
+    toast(S.titles[key] ? "Renamed to " + S.titles[key] : "Back to " + orig);
+  };
+  $("#rnok").onclick = () => save(inp.value.trim());
+  inp.onkeydown = e => { if (e.key === "Enter") save(inp.value.trim()); };
+  if ($("#rnreset")) $("#rnreset").onclick = () => save("");
+}
+
 /* ---------------- your own cover art ---------------- */
 function refreshCover(iid) {
   const r = S.coverRev[iid];
@@ -1870,21 +1901,34 @@ const UIScale = (() => {
   let cur = 1, pref = "auto", native = false, timer = null, tipT = null;
   const call = async (n, a) => (await fetch("/api/" + n, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(a || {})})).json();
   // Auto: keep the page between ~1280 and 2560 "design pixels" wide - the range it was built for.
+  // The window size is measured in real screen pixels (innerWidth x devicePixelRatio), which don't
+  // change when we zoom - so a zoom change can never feed back into the next calculation and make
+  // the page bounce between two sizes (that re-drawing looked like the screen dimming on a TV).
+  let sysScale = devicePixelRatio || 1;                   // Windows scaling, learnt while the zoom is known
+  const learnScale = () => { if (!busy && Date.now() > settleUntil) sysScale = (devicePixelRatio || 1) / cur; };
   function autoZoom() {
-    const w = innerWidth * cur, h = innerHeight * cur;     // size of the window at 100%
+    const k = (devicePixelRatio || 1) / sysScale;            // = current zoom, measured by the browser itself
+    const w = innerWidth * k, h = innerHeight * k;           // size of the window at 100%
     let z = 1;
     if (w > 2560) z = w / 2560;
     else if (w < 1280) z = w / 1280;
     if (h / z < 760) z = Math.min(z, h / 760);
-    return Math.max(0.5, Math.min(3, Math.round(z * 100) / 100));
+    return Math.max(0.5, Math.min(3, Math.round(z * 20) / 20));   // 5% steps: tiny jitters can't trigger a change
   }
   const wanted = () => pref === "auto" ? autoZoom() : pref;
+  let busy = false, settleUntil = 0;
   async function apply(force) {
-    if (!native) return;
+    if (!native || busy) return;
     const z = wanted();
-    if (!force && Math.abs(z - cur) < 0.01) return;
-    const r = await call("set_zoom", {zoom: z});
-    if (r && r.ok) cur = r.zoom;
+    if (!force && Math.abs(z - cur) < 0.04) return;
+    if (Math.abs(z - cur) < 0.001) return;
+    busy = true;
+    try {
+      const r = await call("set_zoom", {zoom: z});
+      if (r && r.ok) cur = r.zoom;
+    } finally {
+      busy = false; settleUntil = Date.now() + 600;           // ignore the resize events our own zoom causes
+    }
   }
   function tip(text) {
     const t = document.getElementById("zoomtip"); t.textContent = text; t.classList.add("show");
@@ -1914,7 +1958,17 @@ const UIScale = (() => {
     const sel = document.getElementById("uiscale");
     if (sel) sel.onchange = () => setPref(sel.value === "auto" ? "auto" : parseFloat(sel.value), false);
   };
-  addEventListener("resize", () => { clearTimeout(timer); timer = setTimeout(() => apply(false), 150); });
+  addEventListener("resize", () => {
+    clearTimeout(timer);
+    // only a real change of window size (or screen) counts; wait until our own zoom change has settled
+    timer = setTimeout(function again() {
+      if (busy || Date.now() < settleUntil) { timer = setTimeout(again, 250); return; }
+      // moved to a screen with different Windows scaling: the browser's own zoom reading no longer
+      // matches ours - re-learn the scaling instead of chasing it
+      if (Math.abs((devicePixelRatio || 1) / sysScale - cur) > 0.02) learnScale();
+      apply(false);
+    }, 200);
+  });
   addEventListener("keydown", e => {
     if (!native || !e.ctrlKey || e.altKey) return;
     if (e.key === "=" || e.key === "+") { e.preventDefault(); step(1); }
@@ -1926,6 +1980,7 @@ const UIScale = (() => {
     try {
       const r = await call("get_zoom");
       cur = r.zoom || 1; pref = r.scale || "auto"; native = !!r.native;
+      learnScale();
       await apply(true);
     } catch (e) {}
   })();
