@@ -27,7 +27,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 APP_NAME = "Movie Guide"
-VERSION = "1.0.9"                       # set automatically by the GitHub build from the release tag
+VERSION = "1.0.10"                       # set automatically by the GitHub build from the release tag
 GITHUB_REPO = "AAmbrose123/MovieGuide"  # where updates are published
 FROZEN = getattr(sys, "frozen", False)  # True when running as the built MovieGuide.exe
 HERE = Path(sys.executable).resolve().parent if FROZEN else Path(__file__).resolve().parent
@@ -2739,6 +2739,30 @@ def _set_title(self, a):
 App.set_title = _set_title
 
 
+# ---------------------------------------------------------------- full screen
+def _is_fs():
+    form = getattr(App.window, "native", None) if App.window is not None else None
+    return bool(getattr(form, "is_fullscreen", False))
+
+
+def _fullscreen(self, a=None):
+    """{"toggle": true} switches full screen on/off now; {"startup": bool} sets whether the app opens in full screen."""
+    a = a or {}
+    if "startup" in a:
+        self.store.config["fullscreen"] = bool(a["startup"])
+        self.store.touch()
+    if a.get("toggle") and App.window is not None:
+        try:
+            App.window.toggle_fullscreen()
+            time.sleep(0.15)
+        except Exception as e:
+            return {"error": f"{type(e).__name__}: {e}"}
+    return {"on": _is_fs(), "startup": self.store.config.get("fullscreen", True), "native": App.window is not None}
+
+
+App.fullscreen = _fullscreen
+
+
 def make_handler(app):
     class H(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
@@ -2870,7 +2894,8 @@ def main():
 
     _win_icon_setup()
     title = f"{APP_NAME} {VERSION}"
-    App.window = webview.create_window(title, url, width=1440, height=920, maximized=True,
+    fs = bool(app.store.config.get("fullscreen", True))
+    App.window = webview.create_window(title, url, width=1440, height=920, maximized=not fs, fullscreen=fs,
                                        min_size=(960, 620), background_color="#0a0b10")
     webview.start(_win_icon_apply, (title,))
     app.store.dirty = True

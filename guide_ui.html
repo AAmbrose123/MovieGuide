@@ -308,6 +308,8 @@ button,input,select{font:inherit;color:inherit}
 .renbtn svg{width:100%;height:100%}
 h2:hover .renbtn,.renbtn:focus-visible{opacity:1}
 .renbtn:hover{color:var(--acc)}
+.fsopt{display:flex;align-items:center;gap:9px;font-weight:650;cursor:pointer;margin-right:auto}
+.fsopt input{width:18px;height:18px;accent-color:var(--acc)}
 /* cover picker */
 .covpick{display:grid;grid-template-columns:200px 1fr;gap:22px;align-items:start}
 .covprev{width:200px;aspect-ratio:2/3;border-radius:14px;overflow:hidden;background:var(--surf2);display:grid;place-items:center;color:var(--dim);box-shadow:0 14px 34px rgba(0,0,0,.45)}
@@ -1772,6 +1774,9 @@ function openSettings() {
     <h4>Display size</h4>
     <div class="row"><select class="sel" id="uiscale"></select><span class="note" id="uiscaleNote" style="margin:0;align-self:center"></span></div>
     <p class="note">Auto keeps the same layout on any screen, from a laptop to a 4K TV. Shortcuts: <b>Ctrl +</b> bigger, <b>Ctrl −</b> smaller, <b>Ctrl 0</b> back to Auto.</p>
+    <h4>Full screen</h4>
+    <div class="row"><label class="fsopt"><input type="checkbox" id="fsstart"> Open in full screen</label><button class="btn sec" id="fsnow">Switch now (F11)</button></div>
+    <p class="note">In full screen there's no title bar: press <b>F11</b> to go back to a window, or <b>Alt+F4</b> to close the app.</p>
     <h4>Updates</h4>
     <div class="row"><button class="btn sec" id="updCheck">Check for updates</button><button class="btn pri" id="updNow" style="display:none">Update now</button><span class="note" id="updVer" style="margin:0;align-self:center"></span></div>
     <div class="msg" id="updMsg"></div>
@@ -1788,6 +1793,7 @@ function openSettings() {
   draw();
   bindDisplaySize();
   bindUpdates();
+  bindFullscreen();
   $("#fp").oninput = () => { const v = $("#fp").value; if (/\b(downloads?|incoming|torrents?|completed?|unsorted)\b/i.test(v)) $("#fk").value = "mixed"; else if (/\b(tv|shows?|series)\b/i.test(v)) $("#fk").value = "tv"; };
   const add = async browse => {
     const v = $("#fp").value.trim(); if (!browse && !v) { $("#fp").focus(); return; }
@@ -1888,6 +1894,24 @@ window.bindUpdates = () => {
     else { b.textContent = "Update now"; b.disabled = $u("updCheck").disabled = false; }
   };
 };
+</script>
+<script>
+/* full screen: F11 toggles, setting picks how the app opens */
+(() => {
+  const call = async (n, a) => (await fetch("/api/" + n, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(a || {})})).json();
+  const toggle = async () => { const r = await call("fullscreen", {toggle: true}); if (r && r.native) toast(r.on ? "Full screen · F11 to exit" : "Windowed · F11 for full screen"); };
+  addEventListener("keydown", e => { if (e.key === "F11") { e.preventDefault(); toggle(); } });
+  window.bindFullscreen = async () => {
+    const r = await call("fullscreen");
+    const cb = document.getElementById("fsstart"), bt = document.getElementById("fsnow");
+    if (!cb) return;
+    cb.checked = !!r.startup; cb.onchange = () => call("fullscreen", {startup: cb.checked});
+    if (!r.native) { bt.disabled = true; bt.title = "Only in the app window"; }
+    bt.onclick = toggle;
+  };
+  // say once how to get out, when the app opens in full screen
+  setTimeout(async () => { try { const r = await call("fullscreen"); if (r.native && r.on) toast("Full screen · press F11 to exit"); } catch (e) {} }, 1800);
+})();
 </script>
 <!-- display size: scale the whole UI evenly to fit any screen -->
 <style>
