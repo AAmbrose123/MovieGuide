@@ -27,7 +27,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 APP_NAME = "Movie Guide"
-VERSION = "1.0.10"                       # set automatically by the GitHub build from the release tag
+VERSION = "1.0.11"                       # set automatically by the GitHub build from the release tag
 GITHUB_REPO = "AAmbrose123/MovieGuide"  # where updates are published
 FROZEN = getattr(sys, "frozen", False)  # True when running as the built MovieGuide.exe
 HERE = Path(sys.executable).resolve().parent if FROZEN else Path(__file__).resolve().parent
@@ -2033,7 +2033,8 @@ class App:
         libs = [dict(l, count=sum(len(scans.get(p) or []) for p in l["paths"])) for l in self.libs()]
         return {"libraries": libs, "current": c["current"], "hasKey": bool(c["apiKey"]),
                 "keyHint": (c["apiKey"][:2] + "•••••") if c["apiKey"] else "",
-                "native": App.window is not None, "titles": c.get("titles", {}), **self._covers()}
+                "native": App.window is not None, "titles": c.get("titles", {}),
+                "lastWatched": c.get("lastWatched", {}), **self._covers()}
 
     def _resolve_path(self, a):
         path = a.get("path")
@@ -2439,7 +2440,32 @@ class App:
 
     def play(self, a):
         target = a.get("play") or a.get("path")
+        # English-language titles: open in VLC with English audio and subtitles off
+        if target and self.store.config.get("englishVLC", True) and Path(target).suffix.lower() in VIDEO_EXT:
+            try:
+                if self._lang_of(target).lower() == "english":
+                    vlc = _find_vlc()
+                    if vlc:
+                        subprocess.Popen([vlc, "--audio-language=en,eng", "--no-spu", target], close_fds=True,
+                                         creationflags=getattr(subprocess, "DETACHED_PROCESS", 0))
+                        return {"ok": True, "english": True}
+            except Exception:
+                pass                                   # anything odd: just open it the normal way
         return self._open(target)
+
+    def _lang_of(self, path):
+        """Main spoken language of the movie / show a file belongs to, from its IMDb data ("" if unknown)."""
+        f = os.path.normcase(os.path.abspath(path))
+        best = None
+        for items in self.store.cache["scans"].values():
+            for it in items or []:
+                ip = os.path.normcase(os.path.abspath(it["path"]))
+                if (f == ip or f.startswith(ip.rstrip("\\/") + os.sep)) and (not best or len(ip) > len(best[0])):
+                    best = (ip, it)
+        if not best:
+            return ""
+        d = (self.lib.resolve(best[1]) or {}).get("data") or {}
+        return (d.get("Language") or "").split(",")[0].strip()
 
     def reveal(self, a):
         p = a["path"]
@@ -2761,6 +2787,89 @@ def _fullscreen(self, a=None):
 
 
 App.fullscreen = _fullscreen
+
+
+# ---------------------------------------------------------------- last watched episode per show
+def _set_last(self, a):
+    """Remember the episode you last played for a show, so it can be highlighted. {"show": folder, "path": file}"""
+    show, path = a.get("show"), a.get("path")
+    if not (isinstance(show, str) and show and isinstance(path, str) and path):
+        return {"error": "No episode given."}
+    lw = self.store.config.setdefault("lastWatched", {})
+    lw[show] = {"path": path, "t": int(time.time())}
+    self.store.touch()
+    return {"ok": True, "lastWatched": lw}
+
+
+App.set_last = _set_last
+
+
+# ---------------------------------------------------------------- VLC for English-language titles
+def _find_vlc():
+    """Path to vlc.exe, or None."""
+    import shutil
+    if os.name != "nt":
+        return shutil.which("vlc")
+    try:
+        import winreg
+        for hive in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
+            for key in (r"SOFTWARE\VideoLAN\VLC", r"SOFTWARE\WOW6432Node\VideoLAN\VLC"):
+                try:
+                    with winreg.OpenKey(hive, key) as k:
+                        for name in (None, "InstallDir"):
+                            try:
+                                v = winreg.QueryValueEx(k, name)[0]
+                            except OSError:
+                                continue
+                            p = Path(v) if str(v).lower().endswith(".exe") else Path(v) / "vlc.exe"
+                            if p.exists():
+                                return str(p)
+                except OSError:
+                    pass
+    except ImportError:
+        pass
+    for base in (os.environ.get("ProgramFiles"), os.environ.get("ProgramFiles(x86)"), os.environ.get("LOCALAPPDATA")):
+        if base:
+            p = Path(base) / "VideoLAN" / "VLC" / "vlc.exe"
+            if p.exists():
+                return str(p)
+    return shutil.which("vlc")
+
+
+def _play_prefs(self, a=None):
+    """{"englishVLC": bool} turns the English-in-VLC rule on/off."""
+    a = a or {}
+    if "englishVLC" in a:
+        self.store.config["englishVLC"] = bool(a["englishVLC"])
+        self.store.touch()
+    return {"englishVLC": self.store.config.get("englishVLC", True), "vlc": _find_vlc()}
+
+
+App.play_prefs = _play_prefs
+
+
+# ---------------------------------------------------------------- close the app (the X shown in full screen)
+def _quit(self, a=None):
+    try:
+        self.store.dirty = True
+        self.store.flush()
+    except Exception:
+        pass
+
+    def bye():
+        time.sleep(0.15)
+        try:
+            if App.window is not None:
+                App.window.destroy()
+        except Exception:
+            pass
+        time.sleep(2)
+        os._exit(0)                      # in case anything is still holding the process open
+    threading.Thread(target=bye, daemon=True).start()
+    return {"ok": True}
+
+
+App.quit = _quit
 
 
 def make_handler(app):

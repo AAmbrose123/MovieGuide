@@ -171,10 +171,14 @@ body.pls .grid{display:none}
 .mrrow .mx:hover{background:rgba(229,72,77,.18);color:#ff9a9a}
 .mright .myrate{max-width:none;margin-top:16px}
 .lcol .myrate{padding:12px 14px 8px}
-.lcol .stars.lg{gap:1px}.lcol .stars.lg .st{width:18px;height:18px}
-.lcol .mrrow{gap:8px;flex-wrap:nowrap}.lcol .mrrow .who{min-width:70px;font-size:13px;gap:6px}.lcol .mrrow .who i{width:20px;height:20px;font-size:11px}
-.lcol .mrrow .mv{min-width:0;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
-.lcol .mrrow .lw{display:none}
+/* narrow side column: name + score on one line, the stars on their own line underneath - nothing gets cut off */
+.lcol .mrrow{display:grid;grid-template-columns:auto 1fr auto;grid-template-areas:"who mv x" "st st st";align-items:center;column-gap:10px;row-gap:7px;padding:9px 0}
+.lcol .mrrow .who{grid-area:who;min-width:0;font-size:13px;gap:6px}.lcol .mrrow .who i{width:20px;height:20px;font-size:11px}
+.lcol .mrrow .mv{grid-area:mv;min-width:0;font-size:13px;white-space:nowrap;justify-self:end}
+.lcol .mrrow .mx{grid-area:x}
+.lcol .mrrow .stars.lg{grid-area:st;display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:3px;width:100%;max-width:330px}
+.lcol .mrrow .stars.lg .st{width:100%;height:auto;aspect-ratio:1;max-width:28px}
+.lcol .mrrow .lw{display:inline}
 .lcol .mrrow .mx{font-size:0;padding:3px 7px;flex:none}.lcol .mrrow .mx::after{content:"✕";font-size:11px}
 .mybadge{position:absolute;bottom:8px;right:8px;z-index:3;display:flex;flex-direction:column;align-items:flex-end;gap:4px}
 .mybadge .rc{display:flex;align-items:center;gap:5px;padding:2px 8px 2px 2px;border-radius:999px;font-weight:900;font-size:12.5px;color:#fff;
@@ -310,6 +314,29 @@ h2:hover .renbtn,.renbtn:focus-visible{opacity:1}
 .renbtn:hover{color:var(--acc)}
 .fsopt{display:flex;align-items:center;gap:9px;font-weight:650;cursor:pointer;margin-right:auto}
 .fsopt input{width:18px;height:18px;accent-color:var(--acc)}
+/* last watched episode */
+.ep.lastw{border-color:var(--acc);background:linear-gradient(90deg,var(--accsoft),var(--surf) 70%);box-shadow:inset 4px 0 0 var(--acc),0 0 0 1px var(--accline),0 10px 30px -12px var(--acc)}
+.ep.lastw .pl{background:var(--acc);color:#111}
+.ep.lastw::after{content:"";position:absolute;inset:-1px;border-radius:inherit;border:2px solid var(--acc);opacity:0;animation:lastpulse 1.6s ease-out 2;pointer-events:none}
+.ep{position:relative}
+@keyframes lastpulse{0%{opacity:.9;transform:scale(1)}100%{opacity:0;transform:scale(1.03)}}
+.lasttag{display:inline-flex;align-items:center;gap:4px;margin-right:8px;padding:1px 8px 1px 6px;border-radius:20px;background:var(--acc);color:#111;font-size:11px;font-weight:800;vertical-align:1px}
+.lasttag svg{width:9px;height:9px}
+.sbtn.haslast{position:relative}
+.sbtn.haslast::after{content:"";position:absolute;top:8px;right:8px;width:8px;height:8px;border-radius:50%;background:var(--acc);box-shadow:0 0 0 3px var(--bg)}
+.sbtn.haslast.on::after{background:#111;box-shadow:none}
+/* back arrow on title pages */
+.backb{position:absolute;z-index:3;top:16px;left:16px;display:flex;align-items:center;gap:8px;height:42px;padding:0 16px 0 12px;border-radius:12px;
+    border:1px solid var(--line);background:rgba(18,20,25,.8);backdrop-filter:blur(8px);color:var(--text);font:700 14px var(--font);cursor:pointer;transition:.15s}
+.backb:hover{background:var(--surf2);border-color:var(--line2)}
+.backb:hover svg{transform:translateX(-3px)}
+.backb svg{transition:transform .2s}
+/* close-the-app X, top right, only in full screen (a normal window has its own) */
+#appclose{position:fixed;top:12px;right:14px;z-index:60;width:44px;height:40px;border-radius:10px;border:0;background:transparent;color:var(--mute);
+    display:none;place-items:center;cursor:pointer;transition:background .15s,color .15s}
+#appclose:hover{background:#e5484d;color:#fff}
+body.fs #appclose{display:grid}
+body.fs .top{padding-right:76px}
 /* cover picker */
 .covpick{display:grid;grid-template-columns:200px 1fr;gap:22px;align-items:start}
 .covprev{width:200px;aspect-ratio:2/3;border-radius:14px;overflow:hidden;background:var(--surf2);display:grid;place-items:center;color:var(--dim);box-shadow:0 14px 34px rgba(0,0,0,.45)}
@@ -368,7 +395,7 @@ h2:hover .renbtn,.renbtn:focus-visible{opacity:1}
 .lcol .bigscores{margin-top:18px}
 .lcol .plot{margin-top:16px;font-size:15px;line-height:1.6}
 .det .sinfo h2{font-size:clamp(28px,2.4vw,42px)}
-.lcol{overflow-y:auto;padding:30px 34px 40px 44px;border-right:1px solid var(--line);background:rgba(12,13,16,.35)}
+.lcol{overflow-y:auto;padding:76px 34px 40px 44px;border-right:1px solid var(--line);background:rgba(12,13,16,.35)}
 .rcol{overflow-y:auto;padding:30px 44px 40px 40px}
 .shead{display:grid;grid-template-columns:150px 1fr;gap:22px;align-items:end}
 .shead .post .pw{border-radius:12px}
@@ -383,7 +410,7 @@ h2:hover .renbtn,.renbtn:focus-visible{opacity:1}
 .ephead{display:flex;align-items:center;min-height:42px;margin-right:170px;margin-bottom:16px}
 .ephead h3{margin:0;font-family:var(--display);font-size:24px;font-weight:750;display:flex;align-items:center;gap:10px}
 .det .in.mov{display:grid;grid-template-columns:minmax(340px,36%) 1fr;padding:0;overflow:hidden}
-.mleft{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;padding:40px 40px 34px;background:rgba(8,9,12,.35);border-right:1px solid var(--line);min-height:0}
+.mleft{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;padding:76px 40px 34px;background:rgba(8,9,12,.35);border-right:1px solid var(--line);min-height:0}
 .mleft .post{width:100%;display:flex;justify-content:center;min-height:0}
 .mleft .pw{height:min(calc(100vh - 170px),1000px);max-width:100%;width:auto;aspect-ratio:2/3;border-radius:18px;box-shadow:0 40px 90px rgba(0,0,0,.65)}
 .mleft .acts{width:min(100%,calc((100vh - 170px)*2/3));margin-top:18px}
@@ -561,7 +588,7 @@ table.heat tfoot td{height:30px;font-size:12.5px;border-top:2px solid var(--line
 .toast.on{opacity:1;transform:translateX(-50%)}
 .spin{width:16px;height:16px;border:2px solid #3a3f4d;border-top-color:var(--acc);border-radius:50%;animation:rot .8s linear infinite;display:inline-block;vertical-align:middle}
 @keyframes rot{to{transform:rotate(360deg)}}
-@media (max-width:1150px){.det .in.mov{grid-template-columns:300px 1fr}.mleft{padding:28px}.mright{padding:44px 34px}.det .in.split{grid-template-columns:340px 1fr}.lcol{padding:32px 24px 32px 28px}.shead{grid-template-columns:105px 1fr;gap:16px}.shead h2{font-size:26px}.rcol{padding:26px 28px 32px}.hero{grid-template-columns:230px 1fr;gap:28px}.det .in{padding:36px}.bigscores{grid-template-columns:1fr}.brand span{display:none}}
+@media (max-width:1150px){.det .in.mov{grid-template-columns:300px 1fr}.mleft{padding:72px 28px 28px}.mright{padding:44px 34px}.det .in.split{grid-template-columns:340px 1fr}.lcol{padding:72px 24px 32px 28px}.shead{grid-template-columns:105px 1fr;gap:16px}.shead h2{font-size:26px}.rcol{padding:26px 28px 32px}.hero{grid-template-columns:230px 1fr;gap:28px}.det .in{padding:36px}.bigscores{grid-template-columns:1fr}.brand span{display:none}}
 </style>
 </head>
 <body>
@@ -1186,7 +1213,7 @@ function cardMenu(x, y, key, inPlaylist) {
   const items = [{head: {img: posterURL(v.data), title: v.data?.Title || v.title, sub: [v.data?.Year || v.year, show ? "TV series" : "Movie", v.data?.imdb != null ? "IMDb " + v.data.imdb.toFixed(1) : ""].filter(Boolean).join(" · ")}},
     {header: "Rate it"}, ...S.raters.map(w => ({stars: 1, who: w, value: rateOf(v, w), run: r => rateItem(key, w, r)})), {sep: 1},
     {label: "Open", icon: ICON_OPEN, hint: "Enter", run: () => openDetail(key)}];
-  if (!show) items.push({label: "Play", icon: PLAY, tone: "#4ade80", run: () => api("play", {play: cp.play, path: cp.path}).then(r => r.ok === false && toast(r.error))});
+  if (!show) items.push({label: "Play", icon: PLAY, tone: "#4ade80", run: () => api("play", {play: cp.play, path: cp.path}).then(r => r.ok === false ? toast(r.error) : r.english && toast(ENG_MSG))});
   items.push({label: show ? "Open folder" : "Show file", icon: ICON_REVEAL, run: () => api("reveal", {path: cp.play || cp.path})});
   items.push({sep: 1});
   items.push({label: pinned ? "Unpin" : "Pin to top", icon: PIN, accent: !pinned, tone: "var(--acc)", run: async () => {
@@ -1414,7 +1441,7 @@ async function pollLoop() {
   setTimeout(pollLoop, r.pending > 0 ? 300 : web ? 800 : 500);
 }
 function base(p) { const s = p.replace(/[\\/]+$/, "").split(/[\\/]/); return s[s.length - 1] || p; }
-function applyState(st) { S.hasKey = st.hasKey; S.native = st.native; S.keyHint = st.keyHint; S.covers = st.covers || {}; S.coverRev = st.coverRev || {}; S.titles = st.titles || {}; renderBanner(); }
+function applyState(st) { S.hasKey = st.hasKey; S.native = st.native; S.keyHint = st.keyHint; S.covers = st.covers || {}; S.coverRev = st.coverRev || {}; S.titles = st.titles || {}; S.lastW = st.lastWatched || {}; renderBanner(); }
 function renderBanner() {
   const h = $("#bannerHost");
   if (S.error) h.innerHTML = `<div class="banner err"><span>⚠️</span><span>${esc(S.error)}</span><button class="btn sec" onclick="openSettings()">Settings</button></div>`;
@@ -1461,9 +1488,7 @@ function renderDetail(it, fresh) {
   else top = `<div class="bigscores">${imdb}${rt}${mc}</div>${myRateHTML(it)}${d.Plot && d.Plot !== "N/A" ? `<p class="plot">${esc(d.Plot)}</p>` : ""}`;
 
   const navs = `
-    <button class="navb p" title="Previous (←)" onclick="stepDetail(-1)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg></button>
-    <button class="navb n" title="Next (→)" onclick="stepDetail(1)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></button>
-    <button class="closex" title="Close (Esc)" data-close><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>`;
+    <button class="backb" title="Back (Esc or mouse back button)" data-close><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>Back</button>`;
   const posterHTML = `<div class="pw"><div class="ph"><b>${esc(title)}</b></div>${small ? `<img class="ok" src="${small}" alt="">` : ""}</div>`;
   const acts = `<div class="acts">
             ${show ? "" : `<button class="btn pri" onclick="playItem()">${PLAY}${cp.play ? "Play" : "Open"}</button>`}
@@ -1533,7 +1558,9 @@ async function loadEpisodes(v, cp) {
   if (S.ep !== mine) return;
   mine.seasons = r.seasons || []; mine.error = r.error;
   const first = mine.seasons.find(x => x.season > 0) || mine.seasons[0];
-  mine.sel = first ? first.season : null;
+  const lastP = S.lastW?.[mine.path]?.path;
+  const lastS = lastP && mine.seasons.find(x => x.episodes.some(e => e.path === lastP));
+  mine.sel = lastS ? lastS.season : first ? first.season : null;      // open on the season you were last watching
   renderEpisodes();
 }
 function seasonName(n) { return n === 0 ? "Extras" : "Season " + n; }
@@ -1572,24 +1599,25 @@ function renderEpisodes() {
   loadSeason(ep, sea.season);
   if (ep.omdb[sea.season] && sea.episodes.some(e => !imdbFor(ep, sea.season, e).title)) { loadSeason(ep, sea.season + 1); loadSeason(ep, sea.season - 1); }
   const size = sea.episodes.reduce((n, e) => n + (e.size || 0), 0);
+  const lastW = S.lastW?.[ep.path], lastP = lastW?.path;
   const ordered = [...ep.seasons].sort((a, b) => (a.season === 0) - (b.season === 0) || a.season - b.season);
   const pinned = Object.entries(S.pins).filter(([p, v]) => v.show === ep.path)
     .sort((a, b) => (a[1].season - b[1].season) || (a[1].episode - b[1].episode));
   const epFile = p => { for (const x of ep.seasons) for (const e of x.episodes) if (e.path === p) return [x.season, e]; return null; };
   const pinRows = pinned.map(([p, v]) => {
     const found = epFile(p); if (!found) return "";
-    const [sn, e] = found, o = imdbFor(ep, sn, e), title = e.title || o.title || v.title || (sn === 0 || e.episode == null ? e.name : `Episode ${e.episode}`);
-    return `<div class="ep pinned" data-path="${esc(p)}" title="${esc(p)}"><span class="num sm">${sn === 0 ? "EX" : "S" + sn}<small>E${String(e.episode ?? "").padStart(2, "0")}</small></span><span class="tt"><b>${esc(title)}</b><small>${esc([o.released, fmtSize(e.size)].filter(Boolean).join("  ·  "))}</small></span><span class="rt">${o.imdb != null ? `<b class="hb" style="${heatStyle(o.imdb)}">${o.imdb.toFixed(1)}</b>` : ""}</span><span class="pl">${PLAY}</span><span class="pinmark">${PIN}</span></div>`;
+    const [sn, e] = found, o = imdbFor(ep, sn, e), title = o.title || e.title || v.title || (sn === 0 || e.episode == null ? e.name : `Episode ${e.episode}`);
+    return `<div class="ep pinned ${p === lastP ? "lastw" : ""}" data-path="${esc(p)}" title="${esc(p)}"><span class="num sm">${sn === 0 ? "EX" : "S" + sn}<small>E${String(e.episode ?? "").padStart(2, "0")}</small></span><span class="tt"><b>${esc(title)}</b><small>${esc([o.released, fmtSize(e.size)].filter(Boolean).join("  ·  "))}</small></span><span class="rt">${o.imdb != null ? `<b class="hb" style="${heatStyle(o.imdb)}">${o.imdb.toFixed(1)}</b>` : ""}</span><span class="pl">${PLAY}</span><span class="pinmark">${PIN}</span></div>`;
   }).join("");
   pinned.forEach(([p, v]) => { if (v.season > 0) loadSeason(ep, v.season); });
   host.innerHTML = (pinRows ? `<div class="pinsec"><div class="pinhead">${PIN}<b>Pinned</b><span>${pinned.length}</span></div><div class="pinlist">${pinRows}</div></div>` : "") + `
-    ${ordered.length > 1 ? `<div class="seasonbar">${ordered.map(x => `<button class="sbtn ${x.season === sea.season ? "on" : ""}" data-s="${x.season}"><b>${seasonName(x.season)}</b><small>${x.episodes.length} episode${x.episodes.length === 1 ? "" : "s"}</small></button>`).join("")}</div>` : ""}
+    ${ordered.length > 1 ? `<div class="seasonbar">${ordered.map(x => `<button class="sbtn ${x.season === sea.season ? "on" : ""} ${x.episodes.some(e => e.path === lastP) ? "haslast" : ""}" data-s="${x.season}"><b>${seasonName(x.season)}</b><small>${x.episodes.length} episode${x.episodes.length === 1 ? "" : "s"}</small></button>`).join("")}</div>` : ""}
     <div class="seahead"><h4>${seasonName(sea.season)}</h4><span>${sea.episodes.length} episode${sea.episodes.length === 1 ? "" : "s"}${size ? " · " + fmtSize(size) : ""} · click one to play</span></div>
     <div class="eplist">${sea.episodes.map((e, i) => {
       const o = imdbFor(ep, sea.season, e), num = e.episode ?? i + 1;
-      const title = e.title || o.title || (sea.season === 0 ? e.name : `Episode ${num}`);
+      const title = o.title || e.title || (sea.season === 0 ? e.name : `Episode ${num}`);   // IMDb's name first; the file itself is never renamed
       const sub = [o.released && o.released !== "N/A" ? o.released : "", fmtSize(e.size), e.name].filter(Boolean).join("  ·  ");
-      return `<div class="ep ${S.pins[e.path] ? "ispin" : ""}" data-i="${i}" title="${esc(e.path)}"><span class="num">${String(num).padStart(2, "0")}${e.episode2 ? `<small style="font-size:12px">–${String(e.episode2).padStart(2, "0")}</small>` : ""}</span><span class="tt"><b>${esc(title)}</b><small>${esc(sub)}</small></span><span class="rt">${o.imdb != null ? `<b class="hb" style="${heatStyle(o.imdb)}" title="IMDb ${o.imdb.toFixed(1)} · ${heat(o.imdb)[3]}">${o.imdb.toFixed(1)}</b>` : (o.title ? `<b class="hb nv" title="Not enough IMDb votes yet">–</b>` : "")}</span><span class="pl">${PLAY}</span><span class="pinmark">${S.pins[e.path] ? PIN : ""}</span></div>`;
+      return `<div class="ep ${S.pins[e.path] ? "ispin" : ""} ${e.path === lastP ? "lastw" : ""}" data-i="${i}" title="${esc(e.path)}"><span class="num">${String(num).padStart(2, "0")}${e.episode2 ? `<small style="font-size:12px">–${String(e.episode2).padStart(2, "0")}</small>` : ""}</span><span class="tt"><b>${esc(title)}</b><small>${e.path === lastP ? lastTag(lastW.t) : ""}${esc(sub)}</small></span><span class="rt">${o.imdb != null ? `<b class="hb" style="${heatStyle(o.imdb)}" title="IMDb ${o.imdb.toFixed(1)} · ${heat(o.imdb)[3]}">${o.imdb.toFixed(1)}</b>` : (o.title ? `<b class="hb nv" title="Not enough IMDb votes yet">–</b>` : "")}</span><span class="pl">${PLAY}</span><span class="pinmark">${S.pins[e.path] ? PIN : ""}</span></div>`;
     }).join("")}</div>`;
   layoutEps();
   host.querySelectorAll(".sbtn").forEach(b => b.onclick = () => { ep.sel = +b.dataset.s; renderEpisodes(); });
@@ -1613,13 +1641,17 @@ function renderEpisodes() {
       {label: on ? "Unpin" : "Pin to top", icon: PIN, accent: !on, tone: "var(--acc)", run: () => togglePin(row)},
     ]);
   });
-  host.querySelectorAll(".ep.pinned").forEach(row => row.onclick = () => {
-    api("play", {play: row.dataset.path, path: row.dataset.path}).then(r => r.ok === false ? toast(r.error) : toast("Playing " + row.querySelector("b").textContent));
+  const playEp = (row, path) => api("play", {play: path, path}).then(async r => {
+    if (r.ok === false) { toast(r.error); return; }
+    toast("Playing " + row.querySelector("b").textContent + (r.english ? " · English audio, no subtitles" : ""));
+    const s2 = await api("set_last", {show: ep.path, path});
+    if (s2.lastWatched) { S.lastW = s2.lastWatched; if (S.ep === ep) renderEpisodes(); }
   });
-  host.querySelectorAll(".eplist .ep").forEach(row => row.onclick = () => {
-    const e = sea.episodes[+row.dataset.i];
-    api("play", {play: e.path, path: e.path}).then(r => r.ok === false ? toast(r.error) : toast("Playing " + row.querySelector("b").textContent));
-  });
+  host.querySelectorAll(".ep.pinned").forEach(row => row.onclick = () => playEp(row, row.dataset.path));
+  host.querySelectorAll(".eplist .ep").forEach(row => row.onclick = () => playEp(row, sea.episodes[+row.dataset.i].path));
+  // bring the last watched episode into view
+  const lw = host.querySelector(".eplist .ep.lastw");
+  if (lw && ep._scrolledTo !== lastP) { ep._scrolledTo = lastP; lw.scrollIntoView({block: "nearest"}); }
 }
 
 /* fill each column top to bottom of the screen, then carry on in the next column */
@@ -1638,7 +1670,8 @@ function layoutEps() {
   list.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
 }
 window.addEventListener("resize", () => { if (S.detailId) layoutEps(); });
-function playItem() { const v = curItem(S.detailId); if (!v) return; const c = selCopy(v); api("play", {play: c.play, path: c.path}).then(r => r.ok === false && toast(r.error)); }
+const ENG_MSG = "Playing in VLC · English audio, no subtitles";
+function playItem() { const v = curItem(S.detailId); if (!v) return; const c = selCopy(v); api("play", {play: c.play, path: c.path}).then(r => r.ok === false ? toast(r.error) : r.english && toast(ENG_MSG)); }
 function revealItem() { const v = curItem(S.detailId); if (!v) return; const c = selCopy(v); api("reveal", {path: c.play || c.path}); }
 async function refetchItem() {
   const v = curItem(S.detailId); if (!v) return;
@@ -1687,6 +1720,12 @@ function openFix() {
 
 
 
+async function bindPlayPrefs() {
+  const r = await api("play_prefs"), cb = $("#engvlc"); if (!cb) return;
+  cb.checked = !!r.englishVLC;
+  cb.onchange = () => api("play_prefs", {englishVLC: cb.checked});
+  if (!r.vlc) $("#engvlcnote").innerHTML = "<b>VLC wasn't found on this PC</b>, so videos open in your normal player. Install VLC from videolan.org to use this.";
+}
 /* ---------------- your own title ---------------- */
 function openRename() {
   const v = curItem(S.detailId); if (!v) return;
@@ -1757,6 +1796,15 @@ function openCover() {
   if ($("#cvreset")) $("#cvreset").onclick = async () => { msg(`<span class="spin"></span> Resetting…`); done(await api("clear_cover", {imdbID: d.imdbID})); };
 }
 
+
+/* ---------------- last watched episode ---------------- */
+function lastTag(t) {
+  const s = Math.max(0, Date.now() / 1000 - (t || 0));
+  const when = s < 90 ? "just now" : s < 3600 ? Math.round(s / 60) + " min ago" : s < 86400 ? Math.round(s / 3600) + " h ago"
+    : s < 172800 ? "yesterday" : s < 30 * 86400 ? Math.round(s / 86400) + " days ago" : new Date(t * 1000).toLocaleDateString();
+  return `<span class="lasttag"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>Last watched · ${when}</span>`;
+}
+
 /* ---------------- settings: key + folders ---------------- */
 function openSettings() {
   openModal(`<div class="modal"><header><h3>Folders &amp; settings</h3><p>Every folder below shows up under the <b>Movies</b> and <b>Shows</b> tabs. Set what each folder holds so it's sorted right.</p></header>
@@ -1774,6 +1822,9 @@ function openSettings() {
     <h4>Display size</h4>
     <div class="row"><select class="sel" id="uiscale"></select><span class="note" id="uiscaleNote" style="margin:0;align-self:center"></span></div>
     <p class="note">Auto keeps the same layout on any screen, from a laptop to a 4K TV. Shortcuts: <b>Ctrl +</b> bigger, <b>Ctrl −</b> smaller, <b>Ctrl 0</b> back to Auto.</p>
+    <h4>Playing videos</h4>
+    <div class="row"><label class="fsopt"><input type="checkbox" id="engvlc"> English-language titles: play in VLC with English audio and no subtitles</label></div>
+    <p class="note" id="engvlcnote">Uses each title's language from IMDb. Everything else opens in your normal player.</p>
     <h4>Full screen</h4>
     <div class="row"><label class="fsopt"><input type="checkbox" id="fsstart"> Open in full screen</label><button class="btn sec" id="fsnow">Switch now (F11)</button></div>
     <p class="note">In full screen there's no title bar: press <b>F11</b> to go back to a window, or <b>Alt+F4</b> to close the app.</p>
@@ -1794,6 +1845,7 @@ function openSettings() {
   bindDisplaySize();
   bindUpdates();
   bindFullscreen();
+  bindPlayPrefs();
   $("#fp").oninput = () => { const v = $("#fp").value; if (/\b(downloads?|incoming|torrents?|completed?|unsorted)\b/i.test(v)) $("#fk").value = "mixed"; else if (/\b(tv|shows?|series)\b/i.test(v)) $("#fk").value = "tv"; };
   const add = async browse => {
     const v = $("#fp").value.trim(); if (!browse && !v) { $("#fp").focus(); return; }
@@ -1839,11 +1891,20 @@ let qT;
 $("#q").oninput = e => { clearTimeout(qT); qT = setTimeout(() => { S.q = e.target.value; applyView(); $("#scroller").scrollTop = 0; }, 90); };
 $("#sort").onchange = e => { S.sort = e.target.value; save(); applyView(); $("#scroller").scrollTop = 0; };
 document.addEventListener("click", e => { if (e.target.closest("[data-close]")) { if (e.target.closest("#modal")) closeModal(); else closeDetail(); } });
+/* one step back: menu > dialog > title page > open playlist > search box */
+function goBack() {
+  if ($("#ctx")) hideCtx();
+  else if ($("#modal").classList.contains("on")) closeModal();
+  else if (S.detailId) closeDetail();
+  else if (S.tab === "playlists" && S.plOpen) { S.plOpen = false; applyView(); }
+  else if (document.activeElement === $("#q") || S.q) { $("#q").value = ""; S.q = ""; applyView(); $("#q").blur(); }
+}
+// mouse "back" side button (button 3) goes back; stop the page itself from navigating
+addEventListener("mousedown", e => { if (e.button === 3 || e.button === 4) e.preventDefault(); });
+addEventListener("mouseup", e => { if (e.button === 3) { e.preventDefault(); goBack(); } else if (e.button === 4) e.preventDefault(); });
 document.addEventListener("keydown", e => {
-  if (e.key === "Escape") { if ($("#ctx")) hideCtx(); else if ($("#modal").classList.contains("on")) closeModal(); else if (S.detailId) closeDetail(); else if (S.tab === "playlists" && S.plOpen) { S.plOpen = false; applyView(); } else if (document.activeElement === $("#q")) { $("#q").value = ""; S.q = ""; applyView(); $("#q").blur(); } return; }
+  if (e.key === "Escape") { goBack(); return; }
   if ($("#modal").classList.contains("on")) return;
-  if (S.detailId && e.key === "ArrowRight") return stepDetail(1);
-  if (S.detailId && e.key === "ArrowLeft") return stepDetail(-1);
   const typing = document.activeElement.tagName === "INPUT";
   if (!typing && !S.detailId && (e.key === "1" || e.key === "2")) return setTab(e.key === "1" ? "movie" : "series");
   if ((e.key === "/" || (e.ctrlKey && e.key.toLowerCase() === "f")) && !typing) { e.preventDefault(); $("#q").focus(); $("#q").select(); }
@@ -1899,7 +1960,12 @@ window.bindUpdates = () => {
 /* full screen: F11 toggles, setting picks how the app opens */
 (() => {
   const call = async (n, a) => (await fetch("/api/" + n, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(a || {})})).json();
-  const toggle = async () => { const r = await call("fullscreen", {toggle: true}); if (r && r.native) toast(r.on ? "Full screen · F11 to exit" : "Windowed · F11 for full screen"); };
+  const mark = r => document.body.classList.toggle("fs", !!(r && r.native && r.on));
+  const toggle = async () => { const r = await call("fullscreen", {toggle: true}); mark(r); if (r && r.native) toast(r.on ? "Full screen · F11 to exit" : "Windowed · F11 for full screen"); };
+  document.addEventListener("click", e => {
+    if (!e.target.closest("#appclose")) return;
+    document.body.style.transition = "opacity .2s"; document.body.style.opacity = "0"; call("quit");
+  });
   addEventListener("keydown", e => { if (e.key === "F11") { e.preventDefault(); toggle(); } });
   window.bindFullscreen = async () => {
     const r = await call("fullscreen");
@@ -1910,7 +1976,8 @@ window.bindUpdates = () => {
     bt.onclick = toggle;
   };
   // say once how to get out, when the app opens in full screen
-  setTimeout(async () => { try { const r = await call("fullscreen"); if (r.native && r.on) toast("Full screen · press F11 to exit"); } catch (e) {} }, 1800);
+  call("fullscreen").then(mark).catch(() => {});
+  setTimeout(async () => { try { const r = await call("fullscreen"); mark(r); if (r.native && r.on) toast("Full screen · press F11 to exit"); } catch (e) {} }, 1800);
 })();
 </script>
 <!-- display size: scale the whole UI evenly to fit any screen -->
@@ -2011,6 +2078,7 @@ const UIScale = (() => {
   return {apply, setPref};
 })();
 </script>
+<button id="appclose" title="Close Movie Guide (Alt+F4)" aria-label="Close Movie Guide"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
 <!-- auto-update banner -->
 <style>
 #updbar{position:fixed;right:22px;bottom:22px;z-index:9999;max-width:380px;background:var(--surf2);border:1px solid var(--line2);border-radius:16px;padding:16px 18px;box-shadow:0 18px 50px rgba(0,0,0,.55);display:none;font-family:var(--font);color:var(--text)}
